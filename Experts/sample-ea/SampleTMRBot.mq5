@@ -398,7 +398,7 @@ public:
                 .with_depends_on(dep_email)
         );
         
-        Print("SampleRobotConfig: Schema defined with ", m_schema.field_count(), " fields");
+        Print("SampleRobotConfig: Schema defined with ", m_schema.get_field_count(), " fields");
     }
     
     //+------------------------------------------------------------------+
