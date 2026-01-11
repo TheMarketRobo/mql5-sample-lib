@@ -1,0 +1,3 @@
+[submodule "include/themarketrobo"]
+	path = include/themarketrobo
+	url = git@github.com:TheMarketRobo/sdk-mql5-lib.git
