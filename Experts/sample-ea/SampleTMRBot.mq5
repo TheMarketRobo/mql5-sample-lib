@@ -50,7 +50,7 @@ input string InpApiKey = "";  // API Key (required)
 //+------------------------------------------------------------------+
 // This UUID identifies the robot version on the server
 // Replace with your actual UUID for production use
-const string ROBOT_VERSION_UUID = "thisisatestuuidplaceholder";
+const string ROBOT_VERSION_UUID = "00000000-0000-0000-0000-000000000000";
 
 //+------------------------------------------------------------------+
 //|                                                                    |
