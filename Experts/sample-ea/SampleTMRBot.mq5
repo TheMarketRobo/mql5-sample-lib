@@ -43,14 +43,14 @@
 //| Input Parameters                                                   |
 //+------------------------------------------------------------------+
 // API Key is required for authentication with TheMarketRobo backend
-input string InpApiKey = "";  // API Key (required)
+input string InpApiKey = "b7e4a951-24da-4b40-85da-0cd46d88076a";  // API Key (required)
 
 //+------------------------------------------------------------------+
 //| Robot Version UUID                                                 |
 //+------------------------------------------------------------------+
 // This UUID identifies the robot version on the server
 // Replace with your actual UUID for production use
-const string ROBOT_VERSION_UUID = "00000000-0000-0000-0000-000000000000";
+const string ROBOT_VERSION_UUID = "263b48b2-efae-4528-9acf-b4456d7c9e37";
 
 //+------------------------------------------------------------------+
 //|                                                                    |
