@@ -4,52 +4,63 @@
 //|                                        https://themarketrobo.com  |
 //+------------------------------------------------------------------+
 //
-// SAMPLE EXPERT ADVISOR - SDK INTEGRATION DEMO
-// ============================================
-// This EA demonstrates how to:
-//   1. Integrate with TheMarketRobo SDK
-//   2. Implement a configuration schema with 19 fields
-//   3. Handle configuration change requests from the server
-//   4. Handle symbol change requests from the server
-//   5. Use watchlist symbols for session initialization
+// SAMPLE EXPERT ADVISOR — SDK INTEGRATION DEMO
+// =============================================
+// Demonstrates ROBOT (Expert Advisor) integration with TheMarketRobo SDK v1.1+.
 //
-// NOTE: This EA does NOT perform any trading operations.
+// What this sample shows:
+//   1. Extending CTheMarketRobo_Base with PRODUCT_TYPE_ROBOT
+//   2. Implementing a 19-field configuration schema via IRobotConfig
+//   3. Handling remote configuration change requests from the dashboard
+//   4. Handling remote symbol change requests from the dashboard
+//   5. Sending Market Watch symbols at session start
+//   6. Generating a unique magic number per session
+//
+// NOTE: This EA does NOT place any trades.
 //       It is designed purely to test SDK connectivity.
 //
 // USAGE:
-//   1. Set your API Key in the input parameter
+//   1. Set your API Key in the InpApiKey input parameter
 //   2. Attach the EA to any chart
 //   3. Monitor the Experts tab for connection status
 //   4. Use the customer dashboard to send config/symbol changes
 //   5. Alerts will appear when changes are received
 //
+// SDK QUICK REFERENCE (Robot):
+//   - Extend CTheMarketRobo_Base(uuid, new YourConfig())
+//   - Call on_init(api_key, magic_number) from OnInit()
+//   - Call on_deinit(reason) from OnDeinit()
+//   - Call on_timer() from OnTimer()
+//   - Call on_tick() from OnTick()
+//   - Call on_chart_event(...) from OnChartEvent()
+//   - Override on_config_changed() and on_symbol_changed() for live updates
+//
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, The Market Robo Inc."
 #property link      "https://themarketrobo.com"
-#property version   "1.00"
-#property description "Sample EA demonstrating TheMarketRobo SDK integration"
-#property description "This EA connects to the backend and handles config/symbol changes"
-#property description "No trading is performed - for testing purposes only"
+#property version   "1.01"
+#property description "Sample EA — TheMarketRobo SDK integration demo (ROBOT product type)"
+#property description "Connects to backend, handles remote config and symbol changes"
+#property description "No trading performed — connectivity test only"
 #property strict
 
 //+------------------------------------------------------------------+
 //| SDK Include                                                        |
 //+------------------------------------------------------------------+
-// Include the main SDK header file which provides all necessary
-// classes and utilities for TheMarketRobo integration
+// Single include — brings in all SDK classes, managers, and the
+// unified CTheMarketRobo_Base class that supports both robots and indicators.
 #include <themarketrobo/TheMarketRobo_SDK.mqh>
 
 //+------------------------------------------------------------------+
 //| Input Parameters                                                   |
 //+------------------------------------------------------------------+
-// API Key is required for authentication with TheMarketRobo backend
 input string InpApiKey = "b7e4a951-24da-4b40-85da-0cd46d88076a";  // API Key (required)
 
 //+------------------------------------------------------------------+
 //| Robot Version UUID                                                 |
 //+------------------------------------------------------------------+
-// This UUID identifies the robot version on the server
-// Replace with your actual UUID for production use
+// Identifies this robot version on TheMarketRobo server.
+// Replace with the UUID issued for your robot during submission/registration.
 const string ROBOT_VERSION_UUID = "263b48b2-efae-4528-9acf-b4456d7c9e37";
 
 //+------------------------------------------------------------------+
@@ -625,31 +636,44 @@ public:
 //+------------------------------------------------------------------+
 /**
  * @class CSampleBot
- * @brief Sample EA implementation using TheMarketRobo SDK
- * 
- * This class demonstrates how to:
- *   - Extend CTheMarketRobo_Bot_Base
- *   - Handle on_tick() events (empty - no trading)
- *   - Handle on_config_changed() events with Alert
- *   - Handle on_symbol_changed() events with Alert
+ * @brief Sample Expert Advisor using the unified CTheMarketRobo_Base SDK class.
+ *
+ * ## SDK Usage (Robot Path)
+ * - Extends CTheMarketRobo_Base, passing the UUID and a config object.
+ * - Calls on_init(api_key, magic_number) — robot overload (2 arguments).
+ * - Overrides on_tick() for per-tick logic (no trading here — demo only).
+ * - Overrides on_config_changed() and on_symbol_changed() to react to
+ *   live parameter updates pushed from the customer dashboard.
+ *
+ * ## What Changes vs Old SDK
+ * - Class now inherits CTheMarketRobo_Base (was CTheMarketRobo_Bot_Base).
+ *   The old name still works as a backwards-compat alias, but new code
+ *   should use CTheMarketRobo_Base directly.
+ * - on_tick(), on_config_changed(), on_symbol_changed() are now virtual
+ *   with default empty implementations — no longer pure virtual.
+ *   Overriding them is still required for meaningful robot behaviour.
+ * - on_calculate() is available as a virtual stub (only used for indicators).
  */
-class CSampleBot : public CTheMarketRobo_Bot_Base
+class CSampleBot : public CTheMarketRobo_Base
 {
 private:
-    int m_tick_count;  // Count ticks for logging
-    
+    int m_tick_count;
+
 public:
     //+------------------------------------------------------------------+
     //| Constructor                                                       |
     //+------------------------------------------------------------------+
-    CSampleBot() : CTheMarketRobo_Bot_Base(ROBOT_VERSION_UUID, new CSampleRobotConfig())
+    // Pass UUID + config to the base class.
+    // The base class stores the config and validates it in on_init().
+    CSampleBot() : CTheMarketRobo_Base(ROBOT_VERSION_UUID, new CSampleRobotConfig())
     {
         m_tick_count = 0;
         Print("==============================================");
-        Print("  SAMPLE TMR BOT - TEST ONLY (NO TRADING)");
+        Print("  SAMPLE TMR BOT — TEST ONLY (NO TRADING)  ");
+        Print("  Product type: ROBOT (Expert Advisor)      ");
         Print("==============================================");
     }
-    
+
     //+------------------------------------------------------------------+
     //| Destructor                                                        |
     //+------------------------------------------------------------------+
@@ -657,115 +681,77 @@ public:
     {
         Print("SampleBot: Destructor called, total ticks processed: ", m_tick_count);
     }
-    
+
     //+------------------------------------------------------------------+
-    //| On Tick - Called on every price tick                              |
+    //| on_tick — called on every new price tick                          |
     //+------------------------------------------------------------------+
-    /**
-     * This method is called on every price tick.
-     * In this sample EA, we do NOT perform any trading operations.
-     * We only log tick activity periodically for monitoring.
-     */
+    // This is the robot's main execution hook.
+    // In a real EA you would place/manage orders here.
+    // In this demo we only count ticks and log every 1000.
     virtual void on_tick() override
     {
         m_tick_count++;
-        
-        // Log every 1000 ticks to show EA is running
+
         if(m_tick_count % 1000 == 0)
         {
-            Print("SampleBot: Tick count = ", m_tick_count, " (no trading - test mode)");
+            Print("SampleBot: Tick #", m_tick_count, " (no trading — demo mode)");
         }
     }
-    
+
     //+------------------------------------------------------------------+
-    //| On Config Changed - Handle configuration change requests          |
+    //| on_config_changed — server pushed a config change request         |
     //+------------------------------------------------------------------+
-    /**
-     * This method is called when the server sends a configuration change request.
-     * The SDK has already processed the change and updated the configuration.
-     * 
-     * In this sample EA:
-     *   - We show an Alert to notify the user
-     *   - We log the change details to the Experts tab
-     *   - We ALWAYS accept all changes (no rejection logic)
-     * 
-     * @param event_json JSON string containing change details
-     */
+    // Called by CTheMarketRobo_Base after the SDK has:
+    //   1. Received the change request in the heartbeat response
+    //   2. Validated each field against the schema
+    //   3. Applied accepted fields to CSampleRobotConfig via update_field()
+    //   4. Sent the result back to the server in the next heartbeat
+    //
+    // At this point your config object already holds the new values.
+    // React to the change here (e.g. adjust trading parameters).
     virtual void on_config_changed(string event_json) override
     {
-        //==================================================================
-        // ALERT USER ABOUT CONFIG CHANGE
-        //==================================================================
-        Alert("=========================================");
-        Alert("  CONFIGURATION CHANGE REQUEST RECEIVED!");
-        Alert("=========================================");
-        Alert("Details: ", event_json);
-        
-        //==================================================================
-        // LOG CHANGE DETAILS
-        //==================================================================
+        Alert("CONFIG CHANGE RECEIVED — see Experts tab for details");
+
         Print("============================================================");
-        Print("| CONFIG CHANGE REQUEST                                     |");
+        Print("| CONFIG CHANGE REQUEST RECEIVED                           |");
         Print("============================================================");
-        Print("Event JSON: ", event_json);
-        Print("Action: Change ACCEPTED (all changes accepted in test mode)");
+        Print("Event: ", event_json);
+        Print("All changes accepted in demo mode.");
         Print("============================================================");
-        
-        // Parse the event to show individual field changes
+
         CJAVal event;
-        if(event.parse(event_json))
+        if(event.parse(event_json) && event.has_key("request_id"))
         {
-            if(event.has_key("changes"))
-            {
-                Print("Changed fields:");
-                // The changes would be logged by the SDK
-            }
+            Print("Request ID: ", event["request_id"].get_string());
         }
     }
-    
+
     //+------------------------------------------------------------------+
-    //| On Symbol Changed - Handle symbol change requests                 |
+    //| on_symbol_changed — server pushed a symbol active_to_trade change |
     //+------------------------------------------------------------------+
-    /**
-     * This method is called when the server sends a symbol change request.
-     * The SDK has already processed the change and updated the symbols.
-     * 
-     * In this sample EA:
-     *   - We show an Alert to notify the user
-     *   - We log the change details to the Experts tab
-     *   - We ALWAYS accept all changes (no rejection logic)
-     * 
-     * @param event_json JSON string containing change details
-     */
+    // Called after the SDK has:
+    //   1. Received the symbol change request in the heartbeat response
+    //   2. Called SymbolSelect() for each requested symbol
+    //   3. Updated the internal symbol list
+    //   4. Sent the result back to the server in the next heartbeat
+    //
+    // React here — e.g. close positions on symbols marked inactive.
     virtual void on_symbol_changed(string event_json) override
     {
-        //==================================================================
-        // ALERT USER ABOUT SYMBOL CHANGE
-        //==================================================================
-        Alert("=========================================");
-        Alert("  SYMBOL CHANGE REQUEST RECEIVED!");
-        Alert("=========================================");
-        Alert("Details: ", event_json);
-        
-        //==================================================================
-        // LOG CHANGE DETAILS
-        //==================================================================
+        Alert("SYMBOL CHANGE RECEIVED — see Experts tab for details");
+
         Print("============================================================");
-        Print("| SYMBOL CHANGE REQUEST                                     |");
+        Print("| SYMBOL CHANGE REQUEST RECEIVED                           |");
         Print("============================================================");
-        Print("Event JSON: ", event_json);
-        Print("Action: Change ACCEPTED (all changes accepted in test mode)");
+        Print("Event: ", event_json);
+        Print("All changes accepted in demo mode.");
         Print("============================================================");
-        
-        // Parse the event to show individual symbol changes
+
         CJAVal event;
-        if(event.parse(event_json))
+        if(event.parse(event_json) && event.has_key("request_id"))
         {
-            if(event.has_key("symbols"))
-            {
-                Print("Symbol changes:");
-                // The symbols would be logged by the SDK
-            }
+            Print("Request ID: ", event["request_id"].get_string());
         }
     }
 };
@@ -776,12 +762,12 @@ public:
 //|   GLOBAL VARIABLES                                                 |
 //|                                                                    |
 //+------------------------------------------------------------------+
-CSampleBot* g_robot = NULL;  // Global robot instance
+CSampleBot *g_robot = NULL;
 
 
 //+------------------------------------------------------------------+
 //|                                                                    |
-//|   MQL5 EVENT HANDLERS                                              |
+//|   MQL5 LIFECYCLE EVENT HANDLERS                                    |
 //|                                                                    |
 //+------------------------------------------------------------------+
 
@@ -792,63 +778,50 @@ int OnInit()
 {
     Print("============================================================");
     Print("| SampleTMRBot Initialization                               |");
+    Print("| Product type: ROBOT (Expert Advisor)                     |");
     Print("============================================================");
-    
-    //==================================================================
-    // VALIDATE API KEY
-    //==================================================================
+
     if(InpApiKey == "")
     {
         Print("ERROR: API Key is required!");
-        Alert("SampleTMRBot: API Key is required! Please set the API Key input parameter.");
+        Alert("SampleTMRBot: API Key is required — set the InpApiKey input parameter.");
         return INIT_PARAMETERS_INCORRECT;
     }
-    
-    //==================================================================
-    // GENERATE RANDOM MAGIC NUMBER
-    //==================================================================
-    // Use combination of random numbers and tick count for uniqueness
+
+    // Generate a unique magic number per session so the backend can
+    // correlate all orders placed by this EA instance.
     MathSrand((int)TimeLocal());
     long magic_number = MathRand() * MathRand() + (long)GetTickCount();
-    Print("Generated Magic Number: ", magic_number);
-    
-    //==================================================================
-    // CREATE ROBOT INSTANCE
-    //==================================================================
+    Print("SampleTMRBot: Generated magic number = ", magic_number);
+
     g_robot = new CSampleBot();
-    
     if(CheckPointer(g_robot) == POINTER_INVALID)
     {
-        Print("ERROR: Failed to create robot instance!");
-        Alert("SampleTMRBot: Failed to create robot instance!");
+        Print("ERROR: Failed to allocate CSampleBot instance!");
+        Alert("SampleTMRBot: Memory allocation failed!");
         return INIT_FAILED;
     }
-    
-    //==================================================================
-    // INITIALIZE SDK CONNECTION
-    //==================================================================
-    // The on_init() method will:
-    //   1. Collect static data (account, terminal, broker info)
-    //   2. Collect watchlist symbols for session_symbols
-    //   3. Connect to TheMarketRobo backend
-    //   4. Start the session
-    //   5. Set up the heartbeat timer
-    
+
+    // Robot overload: on_init(api_key, magic_number)
+    // The base class will:
+    //   1. Collect static fields (account, terminal, broker)
+    //   2. Collect Market Watch symbols as session_symbols
+    //   3. POST /robot/start to register the session
+    //   4. Parse and store the initial robot_config from the response
+    //   5. Start the periodic heartbeat timer
     int result = g_robot.on_init(InpApiKey, magic_number);
-    
     if(result != INIT_SUCCEEDED)
     {
-        Print("ERROR: Robot initialization failed!");
-        // Robot will clean up and remove itself
+        Print("ERROR: SDK initialization failed (code=", result, ")");
         return result;
     }
-    
+
     Print("============================================================");
-    Print("| SampleTMRBot Ready - Connected to TheMarketRobo Backend   |");
-    Print("| Mode: TEST ONLY (No trading)                              |");
-    Print("| Waiting for config/symbol change requests...              |");
+    Print("| SampleTMRBot Ready — Connected to TheMarketRobo Backend  |");
+    Print("| Demo mode: no trades will be placed                      |");
+    Print("| Waiting for config/symbol change requests...             |");
     Print("============================================================");
-    
+
     return INIT_SUCCEEDED;
 }
 
@@ -857,22 +830,16 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
-    Print("============================================================");
-    Print("| SampleTMRBot Shutdown                                     |");
-    Print("| Reason: ", reason);
-    Print("============================================================");
-    
+    Print("SampleTMRBot: OnDeinit reason=", reason);
+
     if(CheckPointer(g_robot) != POINTER_INVALID)
     {
-        // Gracefully terminate SDK session
         g_robot.on_deinit(reason);
-        
-        // Clean up memory
         delete g_robot;
         g_robot = NULL;
     }
-    
-    Print("SampleTMRBot: Shutdown complete");
+
+    Print("SampleTMRBot: Shutdown complete.");
 }
 
 //+------------------------------------------------------------------+
@@ -881,31 +848,25 @@ void OnDeinit(const int reason)
 void OnTick()
 {
     if(CheckPointer(g_robot) != POINTER_INVALID)
-    {
         g_robot.on_tick();
-    }
 }
 
 //+------------------------------------------------------------------+
-//| Timer function - SDK heartbeat                                     |
+//| Timer function — drives SDK heartbeats                             |
 //+------------------------------------------------------------------+
 void OnTimer()
 {
     if(CheckPointer(g_robot) != POINTER_INVALID)
-    {
         g_robot.on_timer();
-    }
 }
 
 //+------------------------------------------------------------------+
-//| ChartEvent function - SDK event handling                           |
+//| Chart event handler — routes SDK custom events                     |
 //+------------------------------------------------------------------+
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
 {
     if(CheckPointer(g_robot) != POINTER_INVALID)
-    {
         g_robot.on_chart_event(id, lparam, dparam, sparam);
-    }
 }
 
 //+------------------------------------------------------------------+
