@@ -50,6 +50,6 @@ The sample Custom Indicator demonstrates a lighter integration path that:
 
 1. Clone this repository (with submodules): `git clone --recurse-submodules <repo_url>`
 2. Place the contents logically within your `MetaTrader 5/MQL5` data folder (or map it as an active project).
-3. Ensure you have an active **API Key** from TheMarketRobo portal.
+3. Ensure you have an active **API Key** from TheMarketRobo. **For local testing**, generate a new **test license** from your [Vendor Portal](https://vendor.themarketrobo.com) and use its API key with the staging API (`https://api.staging.themarketrobo.com`).
 4. Compile the Sample EA or Indicator.
 5. Attach to a chart and input your API Key to initialize the secure session!
