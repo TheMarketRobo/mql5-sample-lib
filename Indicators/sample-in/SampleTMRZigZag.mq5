@@ -36,13 +36,13 @@
 #include <themarketrobo/TheMarketRobo_SDK.mqh>
 
 //--- input parameters
-input string InpApiKey     = "";  // API Key (required for SDK)
+input string InpApiKey     = "40ad7a09-5663-4b5b-92e4-5408bdbe1974";  // API Key (required for SDK)
 input int    InpDepth     = 12;  // Depth
 input int    InpDeviation = 5;   // Deviation
 input int    InpBackstep  = 3;   // Back Step
 
 //--- indicator version UUID (replace with your indicator version UUID from server)
-const string INDICATOR_VERSION_UUID = "00000000-0000-0000-0000-000000000000";
+const string INDICATOR_VERSION_UUID = "faa058b2-37d9-439c-a449-6d19dd13f3f2";
 
 //--- indicator buffers (must be global for SetIndexBuffer)
 double ZigzagPeakBuffer[];
