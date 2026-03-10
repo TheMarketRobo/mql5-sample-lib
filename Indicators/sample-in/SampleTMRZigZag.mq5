@@ -53,6 +53,10 @@ double ColorBuffer[];
 
 int ExtRecalc = 3; // recounting's depth
 
+//--- deferred self-removal globals (for when OnInit fails)
+bool   g_pending_removal = false;
+string g_indicator_short_name = "";
+
 enum EnSearchMode
 {
    Extremum = 0,  // searching for the first extremum
@@ -312,27 +316,48 @@ int OnInit()
    PlotIndexSetString(0, PLOT_LABEL, short_name);
    PlotIndexSetDouble(0, PLOT_EMPTY_VALUE, 0.0);
 
+   //--- Save short name for deferred self-removal
+   g_indicator_short_name = short_name;
+   g_pending_removal = false;
+
    if(InpApiKey == "")
    {
       Print("SampleTMRZigZag: API Key is required. Set InpApiKey for SDK integration.");
-      Alert("SampleTMRZigZag: API Key is required — set InpApiKey input.");
-      return INIT_PARAMETERS_INCORRECT;
+      SDKUserError("API Key is required. Please set it in the indicator settings.");
+      g_pending_removal = true;
+      EventSetTimer(1);  // Start timer so deferred removal can execute
+      return INIT_SUCCEEDED;  // Return SUCCEEDED so timer/events fire for removal
    }
 
    g_indicator = new CSampleZigZagIndicator();
    if(CheckPointer(g_indicator) == POINTER_INVALID)
    {
       Print("SampleTMRZigZag: Failed to create indicator instance.");
-      return INIT_FAILED;
+      SDKUserError("Failed to start. Please try removing and re-adding the indicator.");
+      g_pending_removal = true;
+      EventSetTimer(1);
+      return INIT_SUCCEEDED;
    }
+
+   //--- Tell the SDK our short name so it can self-remove if needed
+   g_indicator.set_indicator_short_name(short_name);
 
    int result = g_indicator.on_init(InpApiKey);
    if(result != INIT_SUCCEEDED)
    {
       Print("SampleTMRZigZag: SDK init failed (code=", result, ")");
+      // SDK already showed user-friendly alert and set pending_removal
+      g_pending_removal = g_indicator.is_pending_removal();
+      if(!g_pending_removal)
+      {
+         // Fallback: SDK didn't set removal flag, set it ourselves
+         SDKUserError("Could not connect to TheMarketRobo service. Please check your internet connection and try again.");
+         g_pending_removal = true;
+      }
       delete g_indicator;
       g_indicator = NULL;
-      return result;
+      EventSetTimer(1);
+      return INIT_SUCCEEDED;
    }
 
    Print("SampleTMRZigZag: Initialized with SDK. ZigZag + heartbeat/termination active.");
@@ -367,6 +392,13 @@ int OnCalculate(const int rates_total,
                 const long     &volume[],
                 const int      &spread[])
 {
+   //--- Deferred self-removal: indicator failed during init
+   if(g_pending_removal)
+   {
+      SDKRemoveIndicatorFromChart(g_indicator_short_name);
+      return rates_total;
+   }
+
    if(CheckPointer(g_indicator) != POINTER_INVALID)
       return g_indicator.on_calculate(rates_total, prev_calculated, time, open, high, low, close, tick_volume, volume, spread);
    return rates_total;
@@ -377,6 +409,14 @@ int OnCalculate(const int rates_total,
 //+------------------------------------------------------------------+
 void OnTimer()
 {
+   //--- Deferred self-removal: indicator failed during init
+   if(g_pending_removal)
+   {
+      EventKillTimer();
+      SDKRemoveIndicatorFromChart(g_indicator_short_name);
+      return;
+   }
+
    if(CheckPointer(g_indicator) != POINTER_INVALID)
       g_indicator.on_timer();
 }
