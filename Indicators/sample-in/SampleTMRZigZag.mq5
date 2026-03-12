@@ -33,6 +33,8 @@
 #property indicator_color1  clrDodgerBlue, clrRed
 #property strict
 
+// To disable SDK for this indicator (no session/heartbeats), uncomment the next line:
+// #define TMR_SDK_DISABLED
 #include <themarketrobo/TheMarketRobo_SDK.mqh>
 
 //--- input parameters
@@ -320,6 +322,7 @@ int OnInit()
    g_indicator_short_name = short_name;
    g_pending_removal = false;
 
+#ifdef SDK_ENABLED
    if(InpApiKey == "")
    {
       Print("SampleTMRZigZag: API Key is required. Set InpApiKey for SDK integration.");
@@ -328,6 +331,7 @@ int OnInit()
       EventSetTimer(1);  // Start timer so deferred removal can execute
       return INIT_SUCCEEDED;  // Return SUCCEEDED so timer/events fire for removal
    }
+#endif
 
    g_indicator = new CSampleZigZagIndicator();
    if(CheckPointer(g_indicator) == POINTER_INVALID)
@@ -360,7 +364,11 @@ int OnInit()
       return INIT_SUCCEEDED;
    }
 
+#ifdef SDK_ENABLED
    Print("SampleTMRZigZag: Initialized with SDK. ZigZag + heartbeat/termination active.");
+#else
+   Print("SampleTMRZigZag: Initialized (SDK disabled — ZigZag only).");
+#endif
    return INIT_SUCCEEDED;
 }
 
