@@ -1,19 +1,21 @@
 //+------------------------------------------------------------------+
-//|                                            SampleTMRZigZag.mq5     |
+//|                                            SampleTMRZigZag.mq4     |
 //|                        Copyright 2024, The Market Robo Inc.       |
 //|                                        https://themarketrobo.com   |
 //+------------------------------------------------------------------+
 //
-// SAMPLE INDICATOR — ZigZagColor + TheMarketRobo SDK
-// ===================================================
-// Based on MetaQuotes ZigzagColor.mq5 sample. Integrates with SDK for
-// session registration, heartbeats, and termination handling (indicator path).
+// SAMPLE INDICATOR — ZigZagColor + TheMarketRobo SDK (MQL4)
+// ==========================================================
+// MQL4 version. Based on ZigZag logic. Integrates with SDK for
+// session registration, heartbeats, and termination handling.
+// Requires MetaTrader 4 build 600+.
 //
 // What this sample shows:
 //   1. Extending CTheMarketRobo_Base with PRODUCT_TYPE_INDICATOR (1-arg constructor)
 //   2. Implementing on_calculate() with full ZigZag logic
-//   3. Global indicator buffers (required by MQL5) + SDK class for logic
+//   3. Global indicator buffers + SDK class for logic
 //   4. on_init(api_key) — no magic_number; OnTimer/OnChartEvent for SDK
+//   5. MQL4-specific indicator buffer setup (2-arg SetIndexBuffer)
 //
 // USAGE:
 //   1. Set InpApiKey in inputs
@@ -23,14 +25,14 @@
 #property copyright "Copyright 2024, The Market Robo Inc."
 #property link      "https://themarketrobo.com"
 #property version   "1.00"
-#property description "Sample ZigZag indicator with TheMarketRobo SDK (INDICATOR product type)"
+#property description "Sample ZigZag indicator (MQL4) with TheMarketRobo SDK (INDICATOR product type)"
+#property description "Requires MetaTrader 4 build 600+"
 
-//--- indicator settings (same as ZigzagColor)
+//--- indicator settings (MQL4 style)
 #property indicator_chart_window
 #property indicator_buffers 5
-#property indicator_plots   1
-#property indicator_type1   DRAW_COLOR_ZIGZAG
-#property indicator_color1  clrDodgerBlue, clrRed
+#property indicator_color1  clrDodgerBlue
+#property indicator_color2  clrRed
 #property strict
 
 // To disable SDK for this indicator (no session/heartbeats), uncomment the next line:
@@ -306,17 +308,26 @@ CSampleZigZagIndicator *g_indicator = NULL;
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   SetIndexBuffer(0, ZigzagPeakBuffer, INDICATOR_DATA);
-   SetIndexBuffer(1, ZigzagBottomBuffer, INDICATOR_DATA);
-   SetIndexBuffer(2, ColorBuffer, INDICATOR_COLOR_INDEX);
-   SetIndexBuffer(3, HighMapBuffer, INDICATOR_CALCULATIONS);
-   SetIndexBuffer(4, LowMapBuffer, INDICATOR_CALCULATIONS);
+   //--- MQL4-style buffer registration (2-arg SetIndexBuffer)
+   SetIndexBuffer(0, ZigzagPeakBuffer);
+   SetIndexBuffer(1, ZigzagBottomBuffer);
+   SetIndexBuffer(2, ColorBuffer);
+   SetIndexBuffer(3, HighMapBuffer);
+   SetIndexBuffer(4, LowMapBuffer);
 
-   IndicatorSetInteger(INDICATOR_DIGITS, _Digits);
+   //--- MQL4-style drawing configuration
+   SetIndexStyle(0, DRAW_ZIGZAG, STYLE_SOLID, 1, clrDodgerBlue);
+   SetIndexStyle(1, DRAW_ZIGZAG, STYLE_SOLID, 1, clrRed);
+   SetIndexStyle(2, DRAW_NONE);
+   SetIndexStyle(3, DRAW_NONE);
+   SetIndexStyle(4, DRAW_NONE);
+
+   SetIndexEmptyValue(0, 0.0);
+   SetIndexEmptyValue(1, 0.0);
+
+   IndicatorDigits(Digits);
    string short_name = StringFormat("SampleTMRZigZag(%d,%d,%d)", InpDepth, InpDeviation, InpBackstep);
-   IndicatorSetString(INDICATOR_SHORTNAME, short_name);
-   PlotIndexSetString(0, PLOT_LABEL, short_name);
-   PlotIndexSetDouble(0, PLOT_EMPTY_VALUE, 0.0);
+   IndicatorShortName(short_name);
 
    //--- Save short name for deferred self-removal
    g_indicator_short_name = short_name;
