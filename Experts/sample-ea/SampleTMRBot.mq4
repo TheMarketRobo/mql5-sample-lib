@@ -783,7 +783,8 @@ int OnInit()
     Print("| Product type: ROBOT (Expert Advisor)                     |");
     Print("============================================================");
 
-    if(InpApiKey == "")
+    // In Strategy Tester no API key is needed — the SDK runs offline.
+    if(InpApiKey == "" && !TMR_IsInTester())
     {
         Print("ERROR: API Key is required!");
         Alert("SampleTMRBot: API Key is required — set the InpApiKey input parameter.");

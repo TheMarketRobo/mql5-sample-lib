@@ -322,8 +322,9 @@ int OnInit()
    g_indicator_short_name = short_name;
    g_pending_removal = false;
 
-#ifdef SDK_ENABLED
-   if(InpApiKey == "")
+#ifdef TMKR_SDK_ENABLED
+   // In Strategy Tester no API key is needed — the SDK runs offline.
+   if(InpApiKey == "" && !TMR_IsInTester())
    {
       Print("SampleTMRZigZag: API Key is required. Set InpApiKey for SDK integration.");
       SDKUserError("API Key is required. Please set it in the indicator settings.");
@@ -365,7 +366,7 @@ int OnInit()
       return INIT_SUCCEEDED;
    }
 
-#ifdef SDK_ENABLED
+#ifdef TMKR_SDK_ENABLED
    Print("SampleTMRZigZag: Initialized with SDK. ZigZag + heartbeat/termination active.");
 #else
    Print("SampleTMRZigZag: Initialized (SDK disabled — ZigZag only).");
