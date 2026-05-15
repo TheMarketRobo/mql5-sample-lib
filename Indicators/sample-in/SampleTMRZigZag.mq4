@@ -338,7 +338,7 @@ int OnInit()
    if(InpApiKey == "" && !TMR_IsInTester())
    {
       Print("SampleTMRZigZag: API Key is required. Set InpApiKey for SDK integration.");
-      SDKUserError("API Key is required. Please set it in the indicator settings.");
+      TMKRUserError("API Key is required. Please set it in the indicator settings.");
       g_pending_removal = true;
       EventSetTimer(1);  // Start timer so deferred removal can execute
       return INIT_SUCCEEDED;  // Return SUCCEEDED so timer/events fire for removal
@@ -349,7 +349,7 @@ int OnInit()
    if(CheckPointer(g_indicator) == POINTER_INVALID)
    {
       Print("SampleTMRZigZag: Failed to create indicator instance.");
-      SDKUserError("Failed to start. Please try removing and re-adding the indicator.");
+      TMKRUserError("Failed to start. Please try removing and re-adding the indicator.");
       g_pending_removal = true;
       EventSetTimer(1);
       return INIT_SUCCEEDED;
@@ -368,7 +368,7 @@ int OnInit()
       if(!g_pending_removal)
       {
          // Fallback: SDK didn't set removal flag, set it ourselves
-         SDKUserError("Could not connect to TheMarketRobo service. Please check your internet connection and try again.");
+         TMKRUserError("Could not connect to TheMarketRobo service. Please check your internet connection and try again.");
          g_pending_removal = true;
       }
       delete g_indicator;
@@ -420,7 +420,7 @@ int OnCalculate(const int rates_total,
    //--- Deferred self-removal: indicator failed during init
    if(g_pending_removal)
    {
-      SDKRemoveIndicatorFromChart(g_indicator_short_name);
+      TMKRRemoveIndicatorFromChart(g_indicator_short_name);
       return rates_total;
    }
 
@@ -438,7 +438,7 @@ void OnTimer()
    if(g_pending_removal)
    {
       EventKillTimer();
-      SDKRemoveIndicatorFromChart(g_indicator_short_name);
+      TMKRRemoveIndicatorFromChart(g_indicator_short_name);
       return;
    }
 
