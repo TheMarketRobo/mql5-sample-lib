@@ -70,7 +70,7 @@ The MQL4 version adapts the indicator buffer setup to use MQL4-style `SetIndexBu
 2. Place the contents logically within your MetaTrader data folder:
    - **MT5:** `MetaTrader 5/MQL5/` directory
    - **MT4:** `MetaTrader 4/MQL4/` directory
-3. Ensure you have an active **API Key** from TheMarketRobo. **For local testing**, generate a new **test license** from your [Vendor Portal](https://vendor.themarketrobo.com) and use its API key with the staging API (`https://api.staging.themarketrobo.com`).
+3. Ensure you have an active **API Key** from TheMarketRobo. **For local testing**, generate a new **test license** from your [Vendor Portal](https://vendor.themarketrobo.com) and use its API key with the production API (`https://api.themarketrobo.com`).
 4. Compile the Sample EA or Indicator using MetaEditor.
 5. Attach to a chart and input your API Key to initialize the secure session!
 

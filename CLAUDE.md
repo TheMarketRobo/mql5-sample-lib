@@ -123,7 +123,7 @@ git submodule update --init --recursive
 Place or symlink repo contents into your MetaTrader 5 `MQL5/` (or MetaTrader 4 `MQL4/`) data folder, then compile the desired `.mq4`/`.mq5` in MetaEditor (F7).
 
 ### Testing
-- **Local connectivity testing** requires a test license from the [Vendor Portal](https://vendor.themarketrobo.com) — use its API key with the staging API (`https://api.staging.themarketrobo.com`)
+- **Local connectivity testing** requires a test license from the [Vendor Portal](https://vendor.themarketrobo.com) — use its API key with the production API (`https://api.themarketrobo.com`); staging has been decommissioned
 - **Strategy Tester** runs work without an API key — the SDK auto-detects tester mode and runs offline (`docs/STRATEGY_TESTER_GUIDE.md` in the SDK submodule documents the bypass)
 - Unit tests under `Scripts/UnitTests/` are MetaQuotes standard library tests (Alglib, Fuzzy, Generic, Stat), not SDK tests
 - There is no CLI build for `.mqh` files — MetaEditor is the only compiler. SDK structural regressions are caught by the Jest tests in the sibling `aws/` repo (see [SDK Integrator Pipeline](#sdk-integrator-pipeline))
