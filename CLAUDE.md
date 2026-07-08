@@ -8,7 +8,7 @@ MQL4/MQL5 developer kit and sample implementations for integrating MetaTrader 4 
 
 The core SDK lives in `Include/themarketrobo/` as a git submodule pointing at `TheMarketRobo/sdk-mql5-lib`. The SDK ships a single codebase that compiles for both platforms via `#ifdef __MQL4__` / `#ifdef __MQL5__` guards in `TMR_Platform.mqh`. Everything else in this repo is either sample integration code or stock MetaQuotes standard library files.
 
-Current SDK version: **v1.1.1** (defined in `Include/themarketrobo/Core/CSDKConstants.mqh` as `TMKR_SDK_VERSION`). The Vendor Portal's [SDK Integrator Lambda](#sdk-integrator-pipeline) refuses to ship integrated output for vendors whose local SDK is below `MIN_REQUIRED_SDK_VERSION`.
+Current SDK version: **v1.2.1** (defined in `Include/themarketrobo/Core/CSDKConstants.mqh` as `TMKR_SDK_VERSION`). v1.2.1 (2026-07-09) restored the pre-TMKR-rename backwards-compat aliases in the NEW `Include/themarketrobo/TMKR_Compat.mqh` — the 2026 rename had shipped without them, which made every legacy-name consumer (these samples included) uncompilable. The Vendor Portal's [SDK Integrator Lambda](#sdk-integrator-pipeline) refuses to ship integrated output for vendors whose local SDK is below `MIN_REQUIRED_SDK_VERSION`.
 
 ## Architecture
 
