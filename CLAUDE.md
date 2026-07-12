@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Infrastructure & connections
+
+This repo is an **SDK/source library — nothing here is deployed.** The compiled EAs that consume it
+call the platform backend at `https://api.themarketrobo.com` (licence checks, robot-download mint),
+which is the **Hetzner box `hetzner-demo`**, not AWS. MQL5 source is compiled to `.ex5` by **MT-CVS**
+(`mt-cvs.themarketrobo.xyz`, box `178.104.19.118`) — see `MQL52026/compile-service/`.
+
+Full infrastructure inventory + connection guide: **`../docs/infrastructure-inventory.md`**.
+
 ## What This Repo Is
 
 MQL4/MQL5 developer kit and sample implementations for integrating MetaTrader 4 (build 600+) and MetaTrader 5 Expert Advisors (EAs) and Custom Indicators with **TheMarketRobo** platform. The directory layout mirrors the standard MetaTrader `MQL5/` (or `MQL4/`) data folder structure — symlink or copy the repo into that data folder and compile in MetaEditor.
