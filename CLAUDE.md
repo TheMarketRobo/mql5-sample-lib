@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This repo is an **SDK/source library — nothing here is deployed.** The compiled EAs that consume it
 call the platform backend at `https://api.themarketrobo.com` (licence checks, robot-download mint),
-which is the **Hetzner box `hetzner-demo`**, not AWS. MQL5 source is compiled to `.ex5` by **MT-CVS**
+which is the **Hetzner box `main-prod`** (renamed from `hetzner-demo` 2026-07-13), not AWS. MQL5 source is compiled to `.ex5` by **MT-CVS**
 (`mt-cvs.themarketrobo.xyz`, box `178.104.19.118`) — see `MQL52026/compile-service/`.
 
 Full infrastructure inventory + connection guide: **`../docs/infrastructure-inventory.md`**.
