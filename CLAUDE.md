@@ -11,6 +11,28 @@ which is the **Hetzner box `main-prod`** (renamed from `hetzner-demo` 2026-07-13
 
 Full infrastructure inventory + connection guide: **`../docs/infrastructure-inventory.md`**.
 
+## graphify
+
+**This repo has no knowledge graph** — it is small enough to read directly, so don't go looking for
+`graphify-out/`. If a task genuinely needs one, `/graphify .` builds it (AST-only, no LLM cost) and
+you must then add its stats here.
+
+The MQL5 graph you probably want is in **`../MQL52026/`** (8,577 nodes, committed) — the framework,
+Experts and Indicators live there. Query it from that repo root with `graphify explain "<Node>"` /
+`graphify query "<question>" --budget 1200`; 🚫 never `Read` a `GRAPH_REPORT.md` or `graph.json`
+whole, and don't invoke the `/graphify` skill just to ask a question (~12k tokens of SKILL.md — the
+CLI alone answers reads). Full contract: `../.claude/rules/graphify.md`.
+
+## Code intelligence — MCP servers
+
+**`serena`** — LSP semantic navigation. Call `activate_project <this repo's path>` first, then
+prefer its symbol tools over `grep` whenever you need *exact* references: grep finds strings,
+serena finds bindings. **`semgrep`** — 5000+ deterministic rules for injection / authz / unsafe
+patterns; scans locally, nothing uploaded. Reach for it **before** hand-auditing a diff
+(`semgrep scan --config p/default <path>`). Contract + traps: `../.claude/rules/code-intelligence-mcp.md`.
+
+No `codeatlas` instance is registered for this repo — use graphify for architecture questions.
+
 ## What This Repo Is
 
 MQL4/MQL5 developer kit and sample implementations for integrating MetaTrader 4 (build 600+) and MetaTrader 5 Expert Advisors (EAs) and Custom Indicators with **TheMarketRobo** platform. The directory layout mirrors the standard MetaTrader `MQL5/` (or `MQL4/`) data folder structure — symlink or copy the repo into that data folder and compile in MetaEditor.
