@@ -86,16 +86,19 @@ jobs:
           node-version: "24"
 
       - name: Lint commit messages
+        # Installed into the WORKSPACE (not an npx -p sandbox): commitlint resolves `-x` extends
+        # from the process cwd, so a sandbox-only install dies with MODULE_NOT_FOUND (proven by
+        # this workflow's own first run).
         run: |
           set -u
+          npm install --no-save --no-audit --no-fund --loglevel=error \
+            @commitlint/cli@19 @commitlint/config-conventional@19
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            npx --yes -p @commitlint/cli@19 -p @commitlint/config-conventional@19 \
-              commitlint -x @commitlint/config-conventional \
+            npx --no-install commitlint -x @commitlint/config-conventional \
               --from "${{ github.event.pull_request.base.sha }}" \
               --to "${{ github.event.pull_request.head.sha }}" --verbose
           else
-            npx --yes -p @commitlint/cli@19 -p @commitlint/config-conventional@19 \
-              commitlint -x @commitlint/config-conventional --last --verbose
+            npx --no-install commitlint -x @commitlint/config-conventional --last --verbose
           fi
 
   required-checks:
