@@ -1,0 +1,125 @@
+# CI for mql5-sample-lib (delivery-overhaul P3, 2026-08-09 — this repo had ZERO CI before).
+#
+# The SDK's actual sources live in the nested PUBLIC submodule Include/themarketrobo
+# (TheMarketRobo/sdk-mql5-lib), pinned by gitlink; this wrapper repo carries the samples, docs and
+# the pin. Two substantive jobs + the aggregation context:
+#   sdk-version-consistency — TMKR_SDK_VERSION (the #define in Core/CSDKConstants.mqh, read at the
+#                             PINNED submodule sha) must be SemVer-shaped and must equal the
+#                             "Current SDK version: **vX.Y.Z**" claim in CLAUDE.md. Phase 5 layers
+#                             release-please on top; this is the consistency floor it builds on.
+#   commitlint              — conventional-commit gate (PR range; pushed head otherwise).
+#
+# Design rules carried from delivery-overhaul P1 (the "gates that could not fail" ledger): no
+# paths filter, no step-level `if:` skips, and required-checks asserts each
+# needs.*.result == 'success'.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdk-version-consistency:
+    name: TMKR_SDK_VERSION consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout (with the nested public SDK submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: define ↔ CLAUDE.md ↔ SemVer
+        run: |
+          set -u
+          DEFINE_FILE="Include/themarketrobo/Core/CSDKConstants.mqh"
+          if [ ! -f "$DEFINE_FILE" ]; then
+            echo "::error title=submodule missing::$DEFINE_FILE not found — the Include/themarketrobo submodule did not check out (it is public; submodules: true should fetch it)."
+            exit 1
+          fi
+          VER=$(sed -nE 's/^#define TMKR_SDK_VERSION "([^"]+)".*/\1/p' "$DEFINE_FILE" | head -1)
+          if [ -z "$VER" ]; then
+            echo "::error title=version define missing::No '#define TMKR_SDK_VERSION \"x.y.z\"' found in $DEFINE_FILE."
+            exit 1
+          fi
+          echo "TMKR_SDK_VERSION define: $VER"
+          if ! echo "$VER" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error title=not SemVer::TMKR_SDK_VERSION '$VER' is not MAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          DOC=$(sed -nE 's/.*Current SDK version: \*\*v([0-9]+\.[0-9]+\.[0-9]+)\*\*.*/\1/p' CLAUDE.md | head -1)
+          if [ -z "$DOC" ]; then
+            echo "::error title=CLAUDE.md claim missing::No 'Current SDK version: **vX.Y.Z**' line found in CLAUDE.md."
+            exit 1
+          fi
+          echo "CLAUDE.md claim:         $DOC"
+          if [ "$VER" != "$DOC" ]; then
+            echo "::error title=version drift::CSDKConstants.mqh says $VER but CLAUDE.md claims $DOC — update both together (the changelog comment block above the define is the place to record why)."
+            exit 1
+          fi
+          echo "TMKR_SDK_VERSION is consistent: $VER"
+
+  commitlint:
+    name: commitlint (conventional commits)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout (full history — range lint)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Lint commit messages
+        run: |
+          set -u
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            npx --yes -p @commitlint/cli@19 -p @commitlint/config-conventional@19 \
+              commitlint -x @commitlint/config-conventional \
+              --from "${{ github.event.pull_request.base.sha }}" \
+              --to "${{ github.event.pull_request.head.sha }}" --verbose
+          else
+            npx --yes -p @commitlint/cli@19 -p @commitlint/config-conventional@19 \
+              commitlint -x @commitlint/config-conventional --last --verbose
+          fi
+
+  required-checks:
+    # The single context the branch ruleset requires. It `needs:` every real job and asserts each
+    # actually SUCCEEDED — `needs:` alone is satisfied by a skipped dependency under
+    # `if: always()`, which is how a green-but-vacuous run happens (delivery-overhaul P1 defect #4).
+    name: required-checks
+    if: always()
+    needs: [sdk-version-consistency, commitlint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Assert every gate succeeded
+        run: |
+          set -u
+          fail=0
+          for pair in "sdk-version-consistency:${{ needs.sdk-version-consistency.result }}" \
+                      "commitlint:${{ needs.commitlint.result }}"; do
+            job="${pair%%:*}"; res="${pair##*:}"
+            printf '  %-24s %s\n' "$job" "$res"
+            [ "$res" = "success" ] || fail=1
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "::error title=required-checks failed::At least one gate did not SUCCEED (a skipped or cancelled job counts as a failure here — that is the whole point of this job)."
+            exit 1
+          fi
+          echo "All gates succeeded."

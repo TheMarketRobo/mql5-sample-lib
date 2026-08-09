@@ -1,0 +1,10 @@
+# CODEOWNERS — delivery-overhaul P3 (2026-08-09).
+#
+# Scoped deliberately to `.github/**` rather than the whole repo. Every operator here is a Claude
+# Code agent, so a repo-wide owner would demand a human review on ordinary agent work and stall
+# the autopilot. What genuinely needs a human in the loop is the DELIVERY MACHINERY itself: the
+# workflows, the required-checks aggregation job, and this file — change those and you change what
+# every other gate is allowed to wave through.
+#
+# Advisory unless the branch ruleset also requires review from Code Owners.
+.github/** @zsarir
