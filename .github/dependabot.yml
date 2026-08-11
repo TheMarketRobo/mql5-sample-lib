@@ -1,0 +1,24 @@
+version: 2
+
+# delivery-overhaul P16 (track B). Before this, `trade-backend` was the ONLY repo in the
+# 14-repo fleet with automated dependency updates, so every other repo sat on whatever
+# action/package major was current the day its workflow was written.
+#
+# Shape copied from trade-backend: minor+patch grouped into one PR per ecosystem to keep
+# noise low, majors arrive individually for deliberate review.
+#
+# `commit-message.prefix` is NOT cosmetic here: this repo runs a commitlint gate, and
+# Dependabot`s default subject ("Bump X from A to B") is sentence-case, which
+# config-conventional`s `subject-case` rule REJECTS. Without an explicit prefix every
+# Dependabot PR would open red.
+#
+# Actions-only: this is an MQL5 source SDK with no package manifest. Merging tags a release.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    commit-message: { prefix: chore, include: scope }
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
