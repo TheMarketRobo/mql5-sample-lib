@@ -175,3 +175,35 @@ Workflow when a fix lands in `TheMarketRobo/sdk-mql5-lib`:
 - SDK-shipped locals that might collide with vendor globals use the `tmkr_` prefix (e.g., `tmkr_i`, `tmkr_c0`, `tmkr_result`) — a recurring source of `declaration of 'X' hides global variable` warnings until SDK v1.1.1
 - SDK JSON is handled via `CJAVal` (legacy) / `CTMKR_JAVal` (post-rename canonical) — same class
 - SDK log messages use the `"SDK Info: "`, `"SDK Warning: "`, `"SDK Error: "` prefix; user-facing errors go through `SDKUserError()` / `TMKRUserError()`
+
+## Local verification
+
+**Tiers 1–2 (git hooks) are deliberately absent in this repo.** Much of the MQL source here — the
+stock MetaQuotes standard-library files under `Include/`, `Indicators/Examples/`, etc. — is
+UTF-16LE + CRLF, and fleet text hooks would corrupt those files on rewrite, so
+local-ci-fast-feedback P3's hook rollout skipped this repo. `--no-verify` policy is trivially
+n/a here: there are no hooks to bypass.
+
+**Tier 3 — the full required-checks mirror:**
+
+```bash
+bash tools/verify-local.sh
+```
+
+(`tools/`, deliberately not the fleet-standard `scripts/`: this repo tracks the MetaTrader
+data-folder directory `Scripts/`, and on case-insensitive dev machines (`core.ignorecase=true`) a
+distinct lowercase `scripts/` cannot exist — `git add scripts/…` case-folds into `Scripts/` and
+silently stages nothing. Do not "normalize" the path back.)
+
+It mirrors `.github/workflows/ci.yml`'s `required-checks` aggregator
+(`needs: [sdk-version-consistency, commitlint]`), one local gate per required job:
+
+| CI job | Local gate |
+|---|---|
+| `sdk-version-consistency` | ci.yml's exact sed/grep: `TMKR_SDK_VERSION` in `Include/themarketrobo/Core/CSDKConstants.mqh` is SemVer AND equals this file's version claim (the line above CI parses — never reword it); plus a preflight that the nested SDK submodule is initialized, since the check reads through it |
+| `commitlint` | the same packages ci.yml installs (`@commitlint/cli@19` + `@commitlint/config-conventional@19`, config pinned at `tools/commitlint.config.cjs`) over `merge-base(origin/main)..HEAD`; on `main` with no branch commits it prints "nothing to lint" and passes |
+
+`.github/workflows/release-please.yml` runs on pushes to `main` only (release automation) — it is
+not a PR gate and is not mirrored. **Maintenance contract:** any change to ci.yml's required
+checks (the aggregator's `needs:` list or a mirrored step's commands) updates
+`tools/verify-local.sh`'s mapping header in the same PR.
