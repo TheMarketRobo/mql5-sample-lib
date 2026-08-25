@@ -2,12 +2,23 @@
 #
 # The SDK's actual sources live in the nested PUBLIC submodule Include/themarketrobo
 # (TheMarketRobo/sdk-mql5-lib), pinned by gitlink; this wrapper repo carries the samples, docs and
-# the pin. Two substantive jobs + the aggregation context:
-#   sdk-version-consistency — TMKR_SDK_VERSION (the #define in Core/CSDKConstants.mqh, read at the
-#                             PINNED submodule sha) must be SemVer-shaped and must equal the
-#                             "Current SDK version: **vX.Y.Z**" claim in CLAUDE.md. Phase 5 layers
-#                             release-please on top; this is the consistency floor it builds on.
+# the pin. Five substantive jobs + the aggregation context:
+#   sdk-version-consistency — the SDK's version identity across the FOUR assertion sites reachable
+#                             from this repo: the #define in Core/CSDKConstants.mqh (read at the
+#                             PINNED submodule sha), the "Current SDK version: **vX.Y.Z**" claim in
+#                             CLAUDE.md, .release-please-manifest.json, and the newest published tag
+#                             in the SDK submodule. (Sites 5 and 6 of the audit's six live in the
+#                             private aws/ repo and are documented, not checked — see
+#                             SDK_RELEASE_PENDING.md.)
+#   sdk-tls-flags           — the indicator transport may not waive TLS hostname/expiry validation.
+#   secret-defaults         — no credential-shaped input or profile value ships a non-empty default
+#                             in this PUBLIC repo.
+#   mql4-support-claim      — README's platform claims match the declared compile-verification state.
 #   commitlint              — conventional-commit gate (PR range; pushed head otherwise).
+#
+# The four substantive gates are implemented ONCE, in tools/gate-*.sh, and called by both this
+# workflow and tools/verify-local.sh. Do not inline gate logic here: the previous shape kept the
+# version check's sed/grep in two places, which is how a local mirror comes to disagree with CI.
 #
 # Design rules carried from delivery-overhaul P1 (the "gates that could not fail" ledger): no
 # paths filter, no step-level `if:` skips, and required-checks asserts each
@@ -35,40 +46,58 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Checkout (with the nested public SDK submodule, full history for tags)
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+          # fetch-depth: 0 — the gate reads the newest TAG in the SDK submodule as one
+          # of its four assertion sites, and a shallow checkout has no tags to read.
+          fetch-depth: 0
+
+      - name: Fetch SDK submodule tags
+        # The submodule is public and actions/checkout rewrites its URL to an
+        # authenticated HTTPS one, so this needs no extra credential. The gate itself
+        # retries this once and FAILS if no tag is visible — "could not check" must
+        # never read as "checked and fine".
+        run: git -C Include/themarketrobo fetch --tags --force origin
+
+      - name: Version identity across the four in-repo assertion sites
+        run: bash tools/gate-sdk-version-consistency.sh
+
+  sdk-tls-flags:
+    name: TLS validation enforced (SDK-1 / MQL-1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
       - name: Checkout (with the nested public SDK submodule)
         uses: actions/checkout@v7
         with:
           submodules: true
 
-      - name: define ↔ CLAUDE.md ↔ SemVer
-        run: |
-          set -u
-          DEFINE_FILE="Include/themarketrobo/Core/CSDKConstants.mqh"
-          if [ ! -f "$DEFINE_FILE" ]; then
-            echo "::error title=submodule missing::$DEFINE_FILE not found — the Include/themarketrobo submodule did not check out (it is public; submodules: true should fetch it)."
-            exit 1
-          fi
-          VER=$(sed -nE 's/^#define TMKR_SDK_VERSION "([^"]+)".*/\1/p' "$DEFINE_FILE" | head -1)
-          if [ -z "$VER" ]; then
-            echo "::error title=version define missing::No '#define TMKR_SDK_VERSION \"x.y.z\"' found in $DEFINE_FILE."
-            exit 1
-          fi
-          echo "TMKR_SDK_VERSION define: $VER"
-          if ! echo "$VER" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error title=not SemVer::TMKR_SDK_VERSION '$VER' is not MAJOR.MINOR.PATCH."
-            exit 1
-          fi
-          DOC=$(sed -nE 's/.*Current SDK version: \*\*v([0-9]+\.[0-9]+\.[0-9]+)\*\*.*/\1/p' CLAUDE.md | head -1)
-          if [ -z "$DOC" ]; then
-            echo "::error title=CLAUDE.md claim missing::No 'Current SDK version: **vX.Y.Z**' line found in CLAUDE.md."
-            exit 1
-          fi
-          echo "CLAUDE.md claim:         $DOC"
-          if [ "$VER" != "$DOC" ]; then
-            echo "::error title=version drift::CSDKConstants.mqh says $VER but CLAUDE.md claims $DOC — update both together (the changelog comment block above the define is the place to record why)."
-            exit 1
-          fi
-          echo "TMKR_SDK_VERSION is consistent: $VER"
+      - name: No unguarded IGNORE_CERT; the debug guard is never defined
+        run: bash tools/gate-sdk-tls-flags.sh
+
+  secret-defaults:
+    name: No credential ships as a default (SDK-5)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Credential-shaped inputs and profile values must be empty
+        run: bash tools/gate-secret-defaults.sh
+
+  mql4-support-claim:
+    name: README platform claims are backed (SDK-12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: README ↔ COMPILE_VERIFICATION.md
+        run: bash tools/gate-mql4-support-claim.sh
 
   commitlint:
     name: commitlint (conventional commits)
@@ -107,7 +136,7 @@ jobs:
     # `if: always()`, which is how a green-but-vacuous run happens (delivery-overhaul P1 defect #4).
     name: required-checks
     if: always()
-    needs: [sdk-version-consistency, commitlint]
+    needs: [sdk-version-consistency, sdk-tls-flags, secret-defaults, mql4-support-claim, commitlint]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -116,6 +145,9 @@ jobs:
           set -u
           fail=0
           for pair in "sdk-version-consistency:${{ needs.sdk-version-consistency.result }}" \
+                      "sdk-tls-flags:${{ needs.sdk-tls-flags.result }}" \
+                      "secret-defaults:${{ needs.secret-defaults.result }}" \
+                      "mql4-support-claim:${{ needs.mql4-support-claim.result }}" \
                       "commitlint:${{ needs.commitlint.result }}"; do
             job="${pair%%:*}"; res="${pair##*:}"
             printf '  %-24s %s\n' "$job" "$res"
