@@ -11,23 +11,35 @@
 # CI source of truth: .github/workflows/ci.yml (workflow "CI").
 # The single ruleset-required context is its aggregator job:
 #
-#   required-checks -> needs: [sdk-version-consistency, commitlint]
+#   required-checks -> needs: [sdk-version-consistency, sdk-tls-flags, secret-defaults,
+#                              mql4-support-claim, commitlint]
 #
 # Mapping — one local gate per required job:
 #
 #   | CI job                  | Local gate                                                        |
 #   |-------------------------|-------------------------------------------------------------------|
-#   | sdk-version-consistency | gate_sdk_version_consistency() — ci.yml's exact sed/grep          |
-#   |                         | (TMKR_SDK_VERSION in Include/themarketrobo/Core/CSDKConstants.mqh |
-#   |                         | is SemVer AND equals CLAUDE.md's "Current SDK version" claim),    |
-#   |                         | plus a preflight that the nested public SDK submodule is          |
-#   |                         | initialized — the version check reads through it.                 |
+#   | sdk-version-consistency | tools/gate-sdk-version-consistency.sh — THE SAME SCRIPT ci.yml    |
+#   |                         | runs. Four assertion sites: the TMKR_SDK_VERSION #define, the     |
+#   |                         | CLAUDE.md claim, .release-please-manifest.json, and the newest    |
+#   |                         | tag in the SDK submodule (three-way: ahead / equal / behind, the  |
+#   |                         | last waived only by SDK_RELEASE_PENDING.md).                      |
+#   | sdk-tls-flags           | tools/gate-sdk-tls-flags.sh — same script.                        |
+#   | secret-defaults         | tools/gate-secret-defaults.sh — same script.                      |
+#   | mql4-support-claim      | tools/gate-mql4-support-claim.sh — same script.                    |
 #   | commitlint              | gate_commitlint() — the same packages ci.yml installs             |
 #   |                         | (@commitlint/cli@19 + @commitlint/config-conventional@19) in a    |
 #   |                         | throwaway dir, config pinned at tools/commitlint.config.cjs       |
 #   |                         | (file-form of ci.yml's "-x @commitlint/config-conventional"),     |
 #   |                         | linting merge-base(origin/main)..HEAD (the PR range). On main     |
 #   |                         | with no branch commits: "nothing to lint" and pass.               |
+#
+# The four substantive gates are ONE implementation each, called by both this mirror
+# and ci.yml. That is deliberate: this file used to carry a hand-copy of the version
+# check's sed/grep, and a hand-copy is what drifts. commitlint stays local-only
+# because its CI form uses PR-event shas that do not exist on a laptop.
+#
+# One Δ no local mirror can close: CI reads the submodule at the sha the PR PINS and
+# fetches its tags; your checkout may differ. The version gate says so when it does.
 #
 # NOT mirrored: .github/workflows/release-please.yml — push-to-main release
 # automation, not a PR gate.
@@ -50,67 +62,20 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 1
 
 # ---------------------------------------------------------------------------
-# Gate 1 — mirror of ci.yml job: sdk-version-consistency
+# Gates 1-4 — mirror of ci.yml jobs sdk-version-consistency, sdk-tls-flags,
+# secret-defaults, mql4-support-claim. Each is THE SAME SCRIPT the workflow runs,
+# so this mirror cannot drift from CI by transcription.
+#
+# The version gate additionally reports (report-only) when the local submodule
+# checkout differs from the recorded gitlink, since CI tests the pinned sha.
 # ---------------------------------------------------------------------------
-gate_sdk_version_consistency() {
-  # Preflight (local-only): the nested public SDK submodule must be initialized.
-  # A '-' prefix in `git submodule status` means "not initialized" — in CI,
-  # actions/checkout `submodules: true` guarantees this; locally we must check.
-  local sub
-  sub="$(git submodule status -- Include/themarketrobo 2>/dev/null || true)"
-  if [ -z "$sub" ]; then
-    echo "ERROR: Include/themarketrobo is not registered as a submodule (check .gitmodules)."
-    return 1
-  fi
-  case "$sub" in
-    -*)
-      echo "ERROR: Include/themarketrobo is NOT initialized ('-' in git submodule status)."
-      echo "       Fix: git submodule update --init Include/themarketrobo"
-      return 1
-      ;;
-    +*)
-      echo "WARN: Include/themarketrobo checkout differs from the recorded gitlink ('+' prefix)."
-      echo "      This gate tests your local checkout; CI tests the sha the PR pins."
-      ;;
-  esac
-  if [ -n "$(git -C Include/themarketrobo status --porcelain 2>/dev/null)" ]; then
-    echo "WARN: Include/themarketrobo has local modifications (report-only —"
-    echo "      SDK changes belong in TheMarketRobo/sdk-mql5-lib, not here)."
-  fi
-
-  # --- from here: the exact mechanics of ci.yml's "define <-> CLAUDE.md <-> SemVer" step ---
-  DEFINE_FILE="Include/themarketrobo/Core/CSDKConstants.mqh"
-  if [ ! -f "$DEFINE_FILE" ]; then
-    echo "ERROR: $DEFINE_FILE not found — the Include/themarketrobo submodule did not check out."
-    return 1
-  fi
-  VER=$(sed -nE 's/^#define TMKR_SDK_VERSION "([^"]+)".*/\1/p' "$DEFINE_FILE" | head -1)
-  if [ -z "$VER" ]; then
-    echo "ERROR: No '#define TMKR_SDK_VERSION \"x.y.z\"' found in $DEFINE_FILE."
-    return 1
-  fi
-  echo "TMKR_SDK_VERSION define: $VER"
-  if ! echo "$VER" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-    echo "ERROR: TMKR_SDK_VERSION '$VER' is not MAJOR.MINOR.PATCH."
-    return 1
-  fi
-  DOC=$(sed -nE 's/.*Current SDK version: \*\*v([0-9]+\.[0-9]+\.[0-9]+)\*\*.*/\1/p' CLAUDE.md | head -1)
-  if [ -z "$DOC" ]; then
-    echo "ERROR: No 'Current SDK version: **vX.Y.Z**' line found in CLAUDE.md."
-    return 1
-  fi
-  echo "CLAUDE.md claim:         $DOC"
-  if [ "$VER" != "$DOC" ]; then
-    echo "ERROR: CSDKConstants.mqh says $VER but CLAUDE.md claims $DOC — update both together"
-    echo "       (the changelog comment block above the define records why)."
-    return 1
-  fi
-  echo "TMKR_SDK_VERSION is consistent: $VER"
-  return 0
-}
+gate_sdk_version_consistency() { bash "$ROOT/tools/gate-sdk-version-consistency.sh"; }
+gate_sdk_tls_flags()           { bash "$ROOT/tools/gate-sdk-tls-flags.sh"; }
+gate_secret_defaults()         { bash "$ROOT/tools/gate-secret-defaults.sh"; }
+gate_mql4_support_claim()      { bash "$ROOT/tools/gate-mql4-support-claim.sh"; }
 
 # ---------------------------------------------------------------------------
-# Gate 2 — mirror of ci.yml job: commitlint
+# Gate 5 — mirror of ci.yml job: commitlint
 # ---------------------------------------------------------------------------
 gate_commitlint() {
   # nvm is not sourced in non-interactive shells (hub-wide trap) — extend PATH
@@ -170,6 +135,9 @@ run_gate() { # <display-name> <function>
 }
 
 run_gate "sdk-version-consistency" gate_sdk_version_consistency
+run_gate "sdk-tls-flags"           gate_sdk_tls_flags
+run_gate "secret-defaults"         gate_secret_defaults
+run_gate "mql4-support-claim"      gate_mql4_support_claim
 run_gate "commitlint"              gate_commitlint
 
 printf '\n=== verify-local summary (mirror of required-checks) ===\n%s' "$SUMMARY"

@@ -7,9 +7,18 @@ This repository contains the complete developer kit and sample implementations f
 | Platform | Minimum Version | Status |
 |----------|----------------|--------|
 | MetaTrader 5 | Any | Fully supported |
-| MetaTrader 4 | Build 600+ | Fully supported |
+| MetaTrader 4 | Build 600+ | Supported, compile-verification pending |
 
 The SDK uses a single codebase with conditional compilation (`#ifdef __MQL4__` / `#ifdef __MQL5__`) to support both platforms. The `TMR_Platform.mqh` compatibility header abstracts the few differences between platforms.
+
+**What "compile-verification pending" means for MetaTrader 4.** The MQL4 support is built, not
+faked — `TMR_Platform.mqh` carries real `#ifdef __MQL4__` compatibility code, and the `.mq4` samples
+below are complete. What is missing is automation: the scheduled rail that compiles and attaches
+this repo's samples currently covers the `.mq5` files only, so the `.mq4` ones are compiled by
+nothing on every change. Treat MQL4 as supported-and-tested-by-hand rather than
+continuously-verified, and expect to compile the `.mq4` samples yourself before relying on them.
+The per-platform state of record is [`COMPILE_VERIFICATION.md`](COMPILE_VERIFICATION.md), which CI
+checks against this table.
 
 ## Repository Structure
 

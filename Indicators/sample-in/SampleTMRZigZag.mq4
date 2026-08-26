@@ -40,7 +40,7 @@
 #include <themarketrobo/TheMarketRobo_SDK.mqh>
 
 //--- input parameters
-input string InpApiKey     = "8ce079aa-c51e-49a5-b9f4-1fdfc5dda713";  // API Key (required for SDK)
+input string InpApiKey     = "";  // API Key (required for SDK)
 input int    InpDepth     = 12;  // Depth
 input int    InpDeviation = 5;   // Deviation
 input int    InpBackstep  = 3;   // Back Step
