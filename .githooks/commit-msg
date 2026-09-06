@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# mql5-sample-lib commit-msg — the shared template, with this repo's type vocabulary.
+# (ci-cd-hardening P13, ledger L-13. Install: bash tools/install-hooks.sh)
+#
+# The RULES live once, in tools/commit-msg.sh — a byte-identical copy of hub's
+# scripts/templates/commit-msg.sh. This file is the thin per-repo shim that supplies the
+# vocabulary, which is the only thing that legitimately differs between repos.
+# 🚫 Never fork the rules into this file: tools/verify-local.sh `cmp`s the template
+# against hub's master (gate0_assert_template), and a forked rule set is drift by
+# definition.
+#
+# ── WHY ONLY commit-msg, AND NO pre-commit / pre-push ────────────────────────────────
+# This repo's tiers 1–2 were skipped by local-ci-fast-feedback P3 for a real reason:
+# much of the MQL source here (the stock MetaQuotes standard-library files under
+# Include/, Indicators/Examples/, and every .chr/.set profile) is UTF-16LE + CRLF, and
+# the fleet's text hooks — trailing-whitespace, end-of-file-fixer, formatters — would
+# REWRITE those files and corrupt them.
+#
+# commit-msg is the exception that is safe: it reads $1 (.git/COMMIT_EDITMSG, always
+# UTF-8, written by git) and writes nothing at all. No repo file is opened, so the
+# UTF-16 hazard does not apply to it.
+#
+# ── WHY IT IS WORTH HAVING HERE ──────────────────────────────────────────────────────
+# This repo's `commitlint` job is inside `required-checks`, and merging a release PR is
+# how the SDK gets tagged. A bad subject means a red aggregator and no release — found
+# at PR time instead of at `git commit` time, which is the expensive place to find it.
+
+set -u
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+# This repo's REAL vocabulary. `.github/dependabot.yml` sets `commit-message.prefix: chore`,
+# and release-please emits `chore(main): release X.Y.Z` — both are covered by `chore`.
+# Kept equal to the conventional set the CI job's `@commitlint/config-conventional`
+# enforces: this repo pins no custom type-enum, so adding a type here alone would let a
+# commit through the hook and red the PR.
+export COMMIT_MSG_TYPES="build chore ci docs feat fix perf refactor revert style test"
+
+exec bash "$ROOT/tools/commit-msg.sh" "$@"

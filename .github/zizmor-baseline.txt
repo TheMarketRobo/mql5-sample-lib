@@ -1,0 +1,11 @@
+# zizmor --pedantic --offline baseline (scripts/templates/lint-workflows.sh)
+# ONE LINE PER ACCEPTED FINDING: <tool>|<rule>|<file>|<route>  # why it is accepted
+# Regenerate with: bash scripts/templates/lint-workflows.sh --update-baseline
+# then WRITE A REASON on every new row by hand. A row with no reason is a
+# finding nobody triaged, which is the thing this file exists to prevent.
+#
+# SHRINK-ONLY: a row that no longer fires FAILS the gate until it is removed.
+# Never add a row to silence a NEW finding.
+zizmor|adhoc-packages|.github/workflows/ci.yml|jobs.commitlint.steps[3]|x1  # @commitlint/cli@19 + @commitlint/config-conventional@19, installed into the workspace. This repo is an MQL5 source tree with no package.json; adding one purely to satisfy this rule would create a second pin to drift. Both packages are major-pinned and the install is cached.
+zizmor|artipacked|.github/workflows/ci.yml|jobs.sdk-version-consistency.steps[0]|x1  # The ONLY checkout here that still needs its token after the action: the next step fetches the SDK submodule's tags and unshallows it, so persist-credentials must stay on. The other four checkouts set it false. Nothing in this workflow uploads an artifact, so there is no artifact for a persisted credential to leak into.
+zizmor|template-injection|.github/workflows/ci.yml|jobs.required-checks.steps[0]|x5  # All five are ${{ needs.<job>.result }} inside the required-checks assert loop. That value is the closed enum success|failure|cancelled|skipped, produced by Actions itself and reachable by no input. Left inline deliberately: the loop is the aggregator's readable contract, and rewriting it through jq would hide the one thing a reviewer must check.

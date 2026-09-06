@@ -178,11 +178,24 @@ Workflow when a fix lands in `TheMarketRobo/sdk-mql5-lib`:
 
 ## Local verification
 
-**Tiers 1–2 (git hooks) are deliberately absent in this repo.** Much of the MQL source here — the
-stock MetaQuotes standard-library files under `Include/`, `Indicators/Examples/`, etc. — is
-UTF-16LE + CRLF, and fleet text hooks would corrupt those files on rewrite, so
-local-ci-fast-feedback P3's hook rollout skipped this repo. `--no-verify` policy is trivially
-n/a here: there are no hooks to bypass.
+**Tier 1 (`pre-commit`) and tier 2 (`pre-push`) are deliberately absent, and `commit-msg` is
+deliberately present.** Much of the MQL source here — the stock MetaQuotes standard-library files
+under `Include/`, `Indicators/Examples/`, and every `.chr`/`.set` profile — is UTF-16LE + CRLF, and
+the fleet's text hooks (trailing-whitespace, end-of-file-fixer, formatters) would **rewrite and
+corrupt** those files, which is why local-ci-fast-feedback P3 skipped this repo. `commit-msg` is the
+one hook that class of hazard does not reach: it reads `.git/COMMIT_EDITMSG` (always UTF-8, written
+by git) and touches no repo file. ci-cd-hardening P13 adopted it (ledger L-13).
+
+```bash
+bash tools/install-hooks.sh          # wires core.hooksPath -> .githooks (worktree-scoped)
+bash tools/install-hooks.sh --check  # report only
+```
+
+The hook's rules are `tools/commit-msg.sh`, a **byte-identical copy** of hub's
+`scripts/templates/commit-msg.sh`; `.githooks/commit-msg` is a thin shim supplying only this repo's
+type vocabulary. 🚫 Never edit the copy in place — `verify-local.sh`'s `gate0` `cmp`s it against
+hub's master and a forked rule set is drift by definition. `--no-verify` is emergency-only and the
+commit body must say why; CI runs the full `commitlint` and will red the PR anyway.
 
 **Tier 3 — the full required-checks mirror:**
 
@@ -195,15 +208,58 @@ data-folder directory `Scripts/`, and on case-insensitive dev machines (`core.ig
 distinct lowercase `scripts/` cannot exist — `git add scripts/…` case-folds into `Scripts/` and
 silently stages nothing. Do not "normalize" the path back.)
 
-It mirrors `.github/workflows/ci.yml`'s `required-checks` aggregator
-(`needs: [sdk-version-consistency, commitlint]`), one local gate per required job:
+It mirrors `.github/workflows/ci.yml`'s `required-checks` aggregator, which since
+delivery-overhaul P3 has aggregated **five** jobs — `needs: [sdk-version-consistency, sdk-tls-flags,
+secret-defaults, mql4-support-claim, commitlint]`. (This section claimed a two-job aggregator until
+ci-cd-hardening P13; the generated `.github/required-checks.snapshot` is now the machine-checked
+answer, asserted equal to both the `needs:` list and the live branch ruleset by hub's
+`scripts/verify-ci-invariants.sh`.) One local gate per required job:
 
 | CI job | Local gate |
 |---|---|
-| `sdk-version-consistency` | ci.yml's exact sed/grep: `TMKR_SDK_VERSION` in `Include/themarketrobo/Core/CSDKConstants.mqh` is SemVer AND equals this file's version claim (the line above CI parses — never reword it); plus a preflight that the nested SDK submodule is initialized, since the check reads through it |
-| `commitlint` | the same packages ci.yml installs (`@commitlint/cli@19` + `@commitlint/config-conventional@19`, config pinned at `tools/commitlint.config.cjs`) over `merge-base(origin/main)..HEAD`; on `main` with no branch commits it prints "nothing to lint" and passes |
+| `sdk-version-consistency` | `tools/gate-sdk-version-consistency.sh` — **the same script ci.yml runs.** Four assertion sites: the `TMKR_SDK_VERSION` `#define` in `Include/themarketrobo/Core/CSDKConstants.mqh`, the "Current SDK version: **vX.Y.Z**" claim in this file (the line CI parses — never reword it), `.release-please-manifest.json`, and the newest tag in the SDK submodule (three-way: ahead / equal / behind, the last waived only by `SDK_RELEASE_PENDING.md`) |
+| `sdk-tls-flags` | `tools/gate-sdk-tls-flags.sh` — same script. `TMKR_INSECURE_TLS_DEBUG` is `#define`d nowhere, and every `IGNORE_CERT` mention sits inside a guard region or a comment |
+| `secret-defaults` | `tools/gate-secret-defaults.sh` — same script. No credential-shaped `input string` default or `.chr`/`.set` profile value is non-empty (UTF-16 decoded before matching) |
+| `mql4-support-claim` | `tools/gate-mql4-support-claim.sh` — same script. `README.md`'s "Fully supported" claims ⇔ `COMPILE_VERIFICATION.md`'s declared state, in both directions |
+| `commitlint` | the same packages ci.yml installs (`@commitlint/cli@19` + `@commitlint/config-conventional@19`, config pinned at `tools/commitlint.config.cjs`) over `merge-base(origin/main)..HEAD`. An **empty** range reports `NOTE`, never `PASS` — `commitlint` exits 0 on zero commits, and calling that a pass claims a gate ran when nothing did |
+
+The verb also runs three **local-only** gates, labelled as such in its header so nobody mistakes
+them for CI: `gate0` (the three copied templates are byte-identical to hub's), `commit-msg-hook`
+(red-proves the hook — a bad subject must be REFUSED and a good one accepted; "the file exists" is
+a claim every uninstalled hook could also make), and `workflow-lint` (`tools/lint-workflows.sh` =
+`actionlint` + `zizmor --pedantic` against the committed `.github/zizmor-baseline.txt`). The
+workflow lint is deliberately **not** a CI job: installing zizmor on a runner would cost more
+billed minutes per PR than this repo's whole gate matrix, and running it on every workflow edit is
+already a standing local duty (`../.claude/rules/local-verification.md`). If it is ever promoted,
+it joins `required-checks`'s `needs:` and that header in the same PR.
+
+The zizmor baseline is a **shrink-only ratchet**: a new finding fails, and a row that stops firing
+also fails until it is deleted. 🚫 Never add a row to silence a new finding — fix the workflow, or
+say in the row's reason why the risk is accepted. P13 took this repo from 26 findings to 7 (every
+High to zero) by SHA-pinning every action, moving `release-please`'s write scopes onto its one job,
+reading commitlint's `${{ }}` values through `env:`, and setting `persist-credentials: false` on the
+four checkouts that make no later git network call.
 
 `.github/workflows/release-please.yml` runs on pushes to `main` only (release automation) — it is
 not a PR gate and is not mirrored. **Maintenance contract:** any change to ci.yml's required
 checks (the aggregator's `needs:` list or a mirrored step's commands) updates
-`tools/verify-local.sh`'s mapping header in the same PR.
+`tools/verify-local.sh`'s mapping header **and** `.github/required-checks.snapshot`
+(`bash ../scripts/gen-required-checks-snapshot.sh mql5-sample-lib .github/workflows/ci.yml`) in the
+same PR.
+
+**Trap — `ci.yml`'s push `paths-ignore` is four entries long on purpose.** Nearly everything here is
+a gate input: `CLAUDE.md` and `.release-please-manifest.json` feed `sdk-version-consistency`,
+`README.md`/`COMPILE_VERIFICATION.md` feed `mql4-support-claim`, every `.mq4`/`.mq5`/`.mqh`/`.chr`/
+`.set` feeds the two SDK scans, and `tools/**` *is* the gate implementations. An "obvious"
+`**/*.md` filter would let a version claim land on `main` unchecked. Check any new entry against the
+list written into the workflow before adding it.
+
+## The nested SDK repo (`Include/themarketrobo`)
+
+`TheMarketRobo/sdk-mql5-lib` is a separate public repository, and since ci-cd-hardening P13 it has
+CI of its own: `sdk-tls-flags` + `secret-defaults` + `commitlint` behind a `required-checks`
+aggregator, `bash tools/verify-local.sh` as its tier-3 verb, and the same `commit-msg` hook. Its
+gates scan **its own** tracked sources; this repo's scan the union of both trees, so the SDK's
+transport is checked twice and cannot regress on either side of the gitlink. Bumping the pointer is
+still the three-step flow in [Bumping the SDK submodule pointer](#bumping-the-sdk-submodule-pointer)
+— now with the SDK's own PR gate in front of it.
