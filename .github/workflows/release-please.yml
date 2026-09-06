@@ -23,16 +23,36 @@ on:
   push:
     branches: [main]
 
+# ci-cd-hardening P13 (zizmor `excessive-permissions`, High ×2). The write scopes below
+# used to sit HERE, at workflow level, where every future job in this file would inherit
+# them. This workflow's token can create tags and releases and open PRs; a job added
+# later for an unrelated reason must not silently get that. Default-deny at the top,
+# grant on the one job that needs it, with the reason on the line.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
+# A second push landing while release-please is mid-run would race it for the same
+# release branch. Serialize, and do NOT cancel in progress: a half-created release PR is
+# worse than a queued one (zizmor `concurrency-limits`).
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release-please:
+    name: release-please (manifest mode)
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write        # tags + GitHub Releases — the whole point of this workflow
+      pull-requests: write   # opens/updates the release PR
     steps:
-      - uses: googleapis/release-please-action@v5
+      # SHA-pinned (ledger N-12): a tag is a moveable pointer and this step runs with
+      # `contents: write`, so `@v5` means a third-party maintainer — or anyone who
+      # compromises them — can change what runs against this repo's write token without
+      # a commit here. The trailing comment keeps Dependabot bumping it.
+      - name: Run release-please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json

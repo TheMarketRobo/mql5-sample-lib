@@ -29,6 +29,27 @@ name: CI
 on:
   push:
     branches: [main]
+    # ci-cd-hardening P13 (ledger N-14). A push that cannot change any gate's verdict
+    # should not run the matrix. `paths-ignore` is the sanctioned shape ON PUSH only —
+    # 🚫 never a `paths:` filter under `pull_request`, which makes a required context
+    # never report and blocks the PR forever (.claude/rules/local-verification.md).
+    #
+    # ⚠️ THE LIST BELOW IS SHORT ON PURPOSE, AND `**/*.md` IS NOT IN IT.
+    # Almost everything in this repo IS a gate input, so an "obvious" docs filter would
+    # be the vacuous-gate defect in reverse — a change landing on main unchecked:
+    #   CLAUDE.md                     -> sdk-version-consistency, assertion site 2
+    #   .release-please-manifest.json -> sdk-version-consistency, assertion site 3
+    #   README.md, COMPILE_VERIFICATION.md -> mql4-support-claim (both directions)
+    #   Include/themarketrobo (gitlink)    -> sites 1 and 6, and both SDK scans
+    #   **/*.mq4, **/*.mq5, **/*.mqh       -> sdk-tls-flags, secret-defaults
+    #   **/*.chr, **/*.set                 -> secret-defaults (UTF-16 profile values)
+    #   tools/**                           -> the gate implementations themselves
+    # Only add a path here after checking it against that list.
+    paths-ignore:
+      - 'Images/**'            # MetaQuotes sample bitmaps — no gate reads a .bmp
+      - '.gitignore'
+      - '.github/CODEOWNERS'
+      - '.github/dependabot.yml'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -46,20 +67,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout (with the nested public SDK submodule, full history for tags)
-        uses: actions/checkout@v7
+      - name: Checkout (with the nested public SDK submodule)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           submodules: true
-          # fetch-depth: 0 — the gate reads the newest TAG in the SDK submodule as one
-          # of its four assertion sites, and a shallow checkout has no tags to read.
-          fetch-depth: 0
+          # ci-cd-hardening P13 (ledger N-20): `fetch-depth: 0` used to sit here so the
+          # gate could read the newest TAG in the SDK submodule (assertion site 6). But
+          # checkout applies the depth to the PARENT as well, and no gate reads a single
+          # commit of this repo's own history — measured 2026-09-06: 69 commits,
+          # 8.59 MiB of pack fetched for nothing. The depth is now applied where it is
+          # actually load-bearing, in the step below, to the 208 KiB submodule alone.
 
-      - name: Fetch SDK submodule tags
+      - name: Deepen the SDK submodule and fetch its tags
+        # ⚠️ Two separate needs, and the second is the one that was invisible.
+        #   1. TAGS — `submodules: true` fetches no tags. The gate FAILS (never skips)
+        #      when it can see none: "could not check" must not read as "checked and fine".
+        #   2. HISTORY — `git describe --tags --abbrev=0` WALKS history to find the
+        #      nearest reachable tag, so tags alone are not enough in a depth-1 clone.
+        #      Today the gitlink happens to sit exactly on v1.3.2 and describe would
+        #      answer anyway; the first commit that advances the pin past a tag would
+        #      have turned the gate red for a reason no one would have guessed. Unshallow
+        #      THIS repo only.
         # The submodule is public and actions/checkout rewrites its URL to an
-        # authenticated HTTPS one, so this needs no extra credential. The gate itself
-        # retries this once and FAILS if no tag is visible — "could not check" must
-        # never read as "checked and fine".
-        run: git -C Include/themarketrobo fetch --tags --force origin
+        # authenticated HTTPS one, so neither fetch needs an extra credential.
+        run: |
+          set -eu
+          cd Include/themarketrobo
+          if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+            git fetch --tags --force --unshallow origin
+          else
+            git fetch --tags --force origin
+          fi
+          git describe --tags --abbrev=0
 
       - name: Version identity across the four in-repo assertion sites
         run: bash tools/gate-sdk-version-consistency.sh
@@ -70,9 +109,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout (with the nested public SDK submodule)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           submodules: true
+          # This job reads files and makes no further git network call, so the token has
+          # nothing left to do after checkout (zizmor `artipacked`).
+          persist-credentials: false
 
       - name: No unguarded IGNORE_CERT; the debug guard is never defined
         run: bash tools/gate-sdk-tls-flags.sh
@@ -83,7 +125,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false   # reads files only (zizmor `artipacked`)
 
       - name: Credential-shaped inputs and profile values must be empty
         run: bash tools/gate-secret-defaults.sh
@@ -94,7 +138,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false   # reads files only (zizmor `artipacked`)
 
       - name: README ↔ COMPILE_VERIFICATION.md
         run: bash tools/gate-mql4-support-claim.sh
@@ -105,27 +151,54 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout (full history — range lint)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          # The whole range is fetched HERE; nothing after this step talks to the
+          # network, so the token need not be left behind (zizmor `artipacked`).
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24"
+
+      - name: Cache npm
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.npm
+          # Keyed on the two pinned packages this job installs — nothing else lands in
+          # this cache. ⚠️ A cache written on a feature branch is NOT readable from
+          # `main` (GitHub scopes cache reads to the branch + its base), so the first
+          # genuine hit is the SECOND run on `main`. Do not claim a saving from this
+          # before measuring it (ci-cd-hardening P13; the trap is in
+          # .claude/rules/local-verification.md).
+          key: mql5-sample-lib-npm-${{ runner.os }}-commitlint19
+          restore-keys: |
+            mql5-sample-lib-npm-${{ runner.os }}-
 
       - name: Lint commit messages
         # Installed into the WORKSPACE (not an npx -p sandbox): commitlint resolves `-x` extends
         # from the process cwd, so a sandbox-only install dies with MODULE_NOT_FOUND (proven by
         # this workflow's own first run).
+        #
+        # Every `${{ }}` is read through `env:` rather than interpolated into the script
+        # body (ci-cd-hardening P13, zizmor `template-injection`). Actions substitutes an
+        # expression into `run:` as raw TEXT before bash parses it, so a value carrying a
+        # quote or a `;` becomes shell syntax. These three are an event name and two shas
+        # — not attacker-controlled today — but "this field happens to be hex" is a
+        # property of the field, not of the pattern, and the pattern is what gets copied.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -u
           npm install --no-save --no-audit --no-fund --loglevel=error \
             @commitlint/cli@19 @commitlint/config-conventional@19
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "$EVENT_NAME" = "pull_request" ]; then
             npx --no-install commitlint -x @commitlint/config-conventional \
-              --from "${{ github.event.pull_request.base.sha }}" \
-              --to "${{ github.event.pull_request.head.sha }}" --verbose
+              --from "$PR_BASE_SHA" --to "$PR_HEAD_SHA" --verbose
           else
             npx --no-install commitlint -x @commitlint/config-conventional --last --verbose
           fi

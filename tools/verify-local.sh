@@ -30,8 +30,24 @@
 #   |                         | (@commitlint/cli@19 + @commitlint/config-conventional@19) in a    |
 #   |                         | throwaway dir, config pinned at tools/commitlint.config.cjs       |
 #   |                         | (file-form of ci.yml's "-x @commitlint/config-conventional"),     |
-#   |                         | linting merge-base(origin/main)..HEAD (the PR range). On main     |
-#   |                         | with no branch commits: "nothing to lint" and pass.               |
+#   |                         | linting merge-base(origin/main)..HEAD (the PR range). An EMPTY    |
+#   |                         | range reports NOTICE, never PASS — see gate 0 below.              |
+#
+# NOT MIRRORED — local-only, and labelled as such on purpose (ci-cd-hardening P13):
+#
+#   | gate 0             | template + hook integrity, and the empty-commitlint-range NOTICE. |
+#   |                    | Cheap, and it decides in under a second whether the expensive     |
+#   |                    | gates below are even worth running.                               |
+#   | commit-msg-hook    | red-proves .githooks/commit-msg: a bad subject must be REFUSED    |
+#   |                    | and a good one accepted. There is no CI job for this — the hook   |
+#   |                    | IS the local tier, and a hook nobody proves is decoration.        |
+#   | workflow-lint      | tools/lint-workflows.sh (actionlint + zizmor vs the committed     |
+#   |                    | baseline). Deliberately NOT a CI job: installing zizmor on a      |
+#   |                    | runner costs more billed minutes per PR than this repo's entire   |
+#   |                    | gate matrix, and .claude/rules/local-verification.md already      |
+#   |                    | makes running it on every workflow edit a standing local duty.    |
+#   |                    | ⚠️ If it is ever promoted to a CI job it joins required-checks    |
+#   |                    | `needs:` and this header in the SAME PR.                          |
 #
 # The four substantive gates are ONE implementation each, called by both this mirror
 # and ci.yml. That is deliberate: this file used to carry a hand-copy of the version
@@ -61,6 +77,93 @@ set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 1
 
+# shellcheck source=tools/lib/verify-local-gate0.sh
+. "$ROOT/tools/lib/verify-local-gate0.sh"
+
+# ---------------------------------------------------------------------------
+# Gate 0 — the checks every repo's verify:local runs FIRST (ci-cd-hardening P2/P13).
+#
+# No lockfile check: this repo has no package manifest at all (the commitlint packages
+# are installed into a throwaway dir by version, not from a lockfile). What it DOES have
+# is three copied templates, and a copy that has been edited in place is drift that
+# nothing else would ever notice — the repo's own CI stays green while its guard diverges
+# from the other ten repos'.
+# ---------------------------------------------------------------------------
+gate_gate0() {
+  local rc=0
+  gate0_assert_template tools/lint-workflows.sh        ../scripts/templates/lint-workflows.sh || rc=1
+  gate0_assert_template tools/commit-msg.sh            ../scripts/templates/commit-msg.sh     || rc=1
+  gate0_assert_template tools/lib/verify-local-gate0.sh ../scripts/lib/verify-local-gate0.sh  || rc=1
+  return $rc
+}
+
+# ---------------------------------------------------------------------------
+# commit-msg hook — RED-PROVED, not merely present (ledger L-13).
+#
+# "The file exists" is the claim every uninstalled hook in this fleet could also make.
+# So this feeds the hook a message it MUST refuse and one it MUST accept, and fails if
+# either verdict is wrong. It runs the hook exactly as git does: `commit-msg <file>`.
+#
+# Wiring is reported separately and does NOT fail: a fresh clone has not run
+# `bash tools/install-hooks.sh` yet, and reporting that as a broken gate would train
+# people to ignore this line.
+# ---------------------------------------------------------------------------
+gate_commit_msg_hook() {
+  local hook="$ROOT/.githooks/commit-msg" tmp rc=0
+  [ -f "$hook" ] || { echo "ERROR: $hook is missing."; return 1; }
+
+  tmp="$(mktemp -d)" || return 1
+
+  printf 'Bump thing from 1 to 2\n' > "$tmp/bad-subject"
+  if bash "$hook" "$tmp/bad-subject" >/dev/null 2>&1; then
+    echo "ERROR: the hook ACCEPTED a non-conventional subject ('Bump thing from 1 to 2')."
+    echo "       That is the Dependabot default subject, which commitlint rejects — the"
+    echo "       hook is not doing the one job it exists for."
+    rc=1
+  else
+    echo "  refused a non-conventional subject                    ok"
+  fi
+
+  { printf 'fix: a legitimate subject\n\n'
+    printf 'This body line is deliberately longer than one hundred columns so that the hook has something real to refuse.\n'
+  } > "$tmp/long-body"
+  if bash "$hook" "$tmp/long-body" >/dev/null 2>&1; then
+    echo "ERROR: the hook ACCEPTED a body line over 100 columns — the rule whose failure"
+    echo "       presents fleet-wide as 'CI was green and nothing shipped'."
+    rc=1
+  else
+    echo "  refused a body line over 100 columns                  ok"
+  fi
+
+  printf 'fix(ci): a subject this repo should accept\n' > "$tmp/good"
+  if bash "$hook" "$tmp/good" >/dev/null 2>&1; then
+    echo "  accepted a well-formed conventional subject           ok"
+  else
+    echo "ERROR: the hook REFUSED a well-formed subject. A hook that refuses everything is"
+    echo "       worse than none: the next commit is made with --no-verify and stays that way."
+    bash "$hook" "$tmp/good"
+    rc=1
+  fi
+
+  rm -rf "$tmp"
+
+  local hp
+  hp="$(git config core.hooksPath 2>/dev/null || true)"
+  if [ "$hp" = ".githooks" ]; then
+    echo "  wiring: core.hooksPath=.githooks                      installed"
+  else
+    echo "  wiring: NOTICE — core.hooksPath='${hp:-unset}' in THIS checkout, so git will not"
+    echo "          run the hook here. The hook itself is proven above. Install with:"
+    echo "          bash tools/install-hooks.sh"
+  fi
+  return $rc
+}
+
+# ---------------------------------------------------------------------------
+# workflow-lint — actionlint + zizmor against the committed baseline. LOCAL-ONLY.
+# ---------------------------------------------------------------------------
+gate_workflow_lint() { bash "$ROOT/tools/lint-workflows.sh"; }
+
 # ---------------------------------------------------------------------------
 # Gates 1-4 — mirror of ci.yml jobs sdk-version-consistency, sdk-tls-flags,
 # secret-defaults, mql4-support-claim. Each is THE SAME SCRIPT the workflow runs,
@@ -85,17 +188,17 @@ gate_commitlint() {
     echo "ERROR: npm not found on PATH (commitlint needs Node — CI uses Node 24)."
     return 1
   fi
-  if ! git rev-parse --verify --quiet origin/main >/dev/null; then
-    echo "ERROR: origin/main not found — run: git fetch origin main"
-    return 1
-  fi
+  # An EMPTY range is a NOTICE, never a PASS (ci-cd-hardening P13, gate 0 rule 2):
+  # `commitlint --from X --to X` exits 0 because there is nothing to lint, and reporting
+  # PASS from that claims a gate ran when nothing did — the vacuous-green shape, inside
+  # the very tool meant to prevent it. rc 3 propagates to the runner as NOTE.
+  gate0_commitlint_range origin/main
+  local range_rc=$?
+  [ "$range_rc" -eq 0 ] || return "$range_rc"
+
   local base head_sha
   base="$(git merge-base origin/main HEAD)" || return 1
   head_sha="$(git rev-parse HEAD)"
-  if [ "$base" = "$head_sha" ]; then
-    echo "nothing to lint (no commits beyond origin/main — mirrors ci.yml's PR-range scope)"
-    return 0
-  fi
   local tmp rc
   tmp="$(mktemp -d)" || return 1
   echo "linting range: ${base}..HEAD"
@@ -129,18 +232,29 @@ run_gate() { # <display-name> <function>
   "$fn"
   rc=$?
   dt=$(( SECONDS - t0 ))
-  if [ "$rc" -eq 0 ]; then verdict="PASS"; else verdict="FAIL"; OVERALL=1; fi
+  # rc 3 is gate 0's NOTICE: the gate could not lint anything, which is neither a pass
+  # nor a failure. Printing it as its own verdict is the point — a summary that says
+  # PASS for a gate that examined nothing is the defect this whole file guards against.
+  case "$rc" in
+    0) verdict="PASS" ;;
+    3) verdict="NOTE" ;;
+    *) verdict="FAIL"; OVERALL=1 ;;
+  esac
   SUMMARY="${SUMMARY}$(printf '  %-26s %-4s %3ss' "$name" "$verdict" "$dt")
 "
 }
 
+run_gate "gate0"                   gate_gate0
 run_gate "sdk-version-consistency" gate_sdk_version_consistency
 run_gate "sdk-tls-flags"           gate_sdk_tls_flags
 run_gate "secret-defaults"         gate_secret_defaults
 run_gate "mql4-support-claim"      gate_mql4_support_claim
 run_gate "commitlint"              gate_commitlint
+run_gate "commit-msg-hook"         gate_commit_msg_hook
+run_gate "workflow-lint"           gate_workflow_lint
 
-printf '\n=== verify-local summary (mirror of required-checks) ===\n%s' "$SUMMARY"
+printf '\n=== verify-local summary (required-checks mirror + local-only gates) ===\n%s' "$SUMMARY"
+printf '  NOTE = the gate ran but had nothing to examine (never counted as a pass).\n'
 if [ "$OVERALL" -ne 0 ]; then
   echo "RESULT: FAIL — at least one required gate did not pass."
   exit 1
