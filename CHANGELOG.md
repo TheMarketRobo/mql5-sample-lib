@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/TheMarketRobo/mql5-sample-lib/compare/v1.3.3...v1.4.0) (2026-09-12)
+
+
+### Features
+
+* **sdk:** typed start-refusal reasons from the SDK ([#18](https://github.com/TheMarketRobo/mql5-sample-lib/issues/18)) ([180ce5f](https://github.com/TheMarketRobo/mql5-sample-lib/commit/180ce5f110c73328a4bbfd6e70d9fe11e6097c04))
+
 ## [1.3.3](https://github.com/TheMarketRobo/mql5-sample-lib/compare/v1.3.2...v1.3.3) (2026-09-11)
 
 

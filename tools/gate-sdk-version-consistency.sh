@@ -8,7 +8,7 @@
 #
 # Checks four assertion sites reachable from this repo. Sites 4 and 5 live in the
 # private `aws/` repo, which this repo's CI does not check out — they are named in
-# SDK_RELEASE_PENDING.md so the gate's edge is documented rather than implied.
+# CLAUDE.md (Local verification) so the gate's edge is documented rather than implied.
 #
 #   1  #define TMKR_SDK_VERSION   Include/themarketrobo/Core/CSDKConstants.mqh
 #   2  "Current SDK version: **vX.Y.Z**"   CLAUDE.md
@@ -113,7 +113,8 @@ if manifest is not None:
         fail.append(
             f"release-please manifest says {manifest} but CSDKConstants.mqh says {define}. "
             "The wrapper's release version and the SDK's version move in lockstep here — "
-            "bump both, or say why in SDK_RELEASE_PENDING.md."
+            "bump both in the same change. There is no waiver for this site: "
+            "SDK_RELEASE_PENDING.md only covers a tag that lags the define (site 6)."
         )
 
 # --- site 6: the newest published tag -----------------------------------------
@@ -173,7 +174,7 @@ else:
             print(f"          tag is behind the define; declared pending release {pending} (errand E-3).")
 
 print("  sites 4-5 (aws/ sdk-error-codes.test.ts, MIN_REQUIRED_SDK_VERSION): externally owned,")
-print("            not checked out here — see SDK_RELEASE_PENDING.md.")
+print("            not checked out here — see CLAUDE.md, Local verification.")
 
 if fail:
     print()
