@@ -11,11 +11,12 @@
 # deliberately not enforced (same stance as ci.yml's consistency gate, which
 # checks #define ↔ CLAUDE.md only). Merging a release PR is a deliberate act.
 #
-# Known limitation: PRs opened with the default GITHUB_TOKEN do not trigger
-# `pull_request` workflows, so the release PR's required checks sit "expected"
-# until someone kicks them (close/reopen the PR, or push to its branch). A
-# dedicated bot PAT would remove this; none exists by design (P3: no new
-# secrets while every needed repo is public).
+# Bot identity (mql-lane-followups P14, decision D-07): release-please runs with an
+# installation token for the org-owned `themarketrobo-bots` GitHub App. PRs opened
+# with the default GITHUB_TOKEN raised no `pull_request` runs, so the release PR's
+# required checks sat "expected" until someone closed and reopened it (PR #12). The
+# App's PRs raise normal runs. Its tags and Releases now raise events too; no
+# workflow in this repo listens for them (checked in P14).
 
 name: release-please
 
@@ -44,9 +45,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write        # tags + GitHub Releases — the whole point of this workflow
-      pull-requests: write   # opens/updates the release PR
+      contents: read         # every write (tags, Releases, the release PR) uses the App token below
     steps:
+      # The bot identity (mql-lane-followups P14, D-07): an installation token for the
+      # org-owned `themarketrobo-bots` GitHub App, minted per run and scoped to this
+      # repository. No fallback to GITHUB_TOKEN: a missing or revoked key must fail the
+      # run loudly instead of opening a release PR that silently has no checks.
+      - name: Mint the bot App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       # SHA-pinned (ledger N-12): a tag is a moveable pointer and this step runs with
       # `contents: write`, so `@v5` means a third-party maintainer — or anyone who
       # compromises them — can change what runs against this repo's write token without
@@ -54,5 +67,6 @@ jobs:
       - name: Run release-please
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
+          token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
