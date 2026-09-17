@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/TheMarketRobo/mql5-sample-lib/compare/v1.4.0...v1.4.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* **sample-ea:** define TMKR_NO_WININET so the sample ships no DLL imports ([#22](https://github.com/TheMarketRobo/mql5-sample-lib/issues/22)) ([d0ee006](https://github.com/TheMarketRobo/mql5-sample-lib/commit/d0ee006495a129e17f3a35e796d8f0e4fa59ed6c))
+
 ## [1.4.0](https://github.com/TheMarketRobo/mql5-sample-lib/compare/v1.3.3...v1.4.0) (2026-09-12)
 
 
