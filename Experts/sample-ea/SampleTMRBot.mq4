@@ -51,6 +51,16 @@
 //+------------------------------------------------------------------+
 // Single include — brings in all SDK classes, managers, and the
 // unified CTheMarketRobo_Base class that supports both robots and indicators.
+// SDK v1.4.1+: an EA never calls wininet.dll or kernel32.dll — it uses the
+// built-in WebRequest() — but until v1.4.1 the SDK compiled those #import
+// blocks in anyway, so MetaEditor recorded an import table and the terminal
+// reported this EA as requiring DLL imports. Defining TMKR_NO_WININET BEFORE
+// the include compiles the WinINet transport out, and the EA runs with
+// "Allow DLL imports" unchecked.
+// Never define it in an indicator: WebRequest() returns 4014 from indicator
+// context, so WinINet is the only transport an indicator has — the SDK
+// #errors if it is reached with this macro defined.
+#define TMKR_NO_WININET
 #include <themarketrobo/TheMarketRobo_SDK.mqh>
 
 //+------------------------------------------------------------------+
