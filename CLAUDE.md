@@ -11,6 +11,27 @@ which is the **Hetzner box `main-prod`** (renamed from `hetzner-demo` 2026-07-13
 
 Full infrastructure inventory + connection guide: **`../docs/infrastructure-inventory.md`**.
 
+## Platform map
+
+This repo is described by the fleet's machine-checked platform map in hub:
+[`../docs/platform-map/`](../docs/platform-map/) — 157 nodes · 151 edges · 6 views, half of it
+**re-derived from these repos on every check** (compose services, cron and SQS-poller manifests,
+systemd units, cloudflared hostnames, `.gitmodules`, self-hosted runner labels and every workflow
+file).
+
+**If you add, remove or rename anything it describes — a container, cron, poller, systemd unit,
+tunnel hostname, Taskfile deploy verb, workflow, submodule, runner label, box, AWS lever, surface or
+bridge — edit the map in the same commit**, then run `task platform-map:check` from hub root. The
+derived half is read straight out of the repo, so an un-mirrored change is a **red gate**, not a
+stale doc — and hub CI checks this repo at its **default-branch tip**, not at hub's gitlink, so the
+gate can go red in hub because of a merge here.
+
+Which YAML, which id convention, which file each fact is derived from:
+[`../.claude/rules/platform-map.md`](../.claude/rules/platform-map.md) (path-scoped — it loads by
+itself when you touch a compose file, a manifest, a workflow, a tunnel config, a systemd directory, a
+Taskfile or `.gitmodules`). The narrative is
+[`../.claude/skills/platform-architecture/references/platform-map.md`](../.claude/skills/platform-architecture/references/platform-map.md).
+
 ## graphify
 
 **This repo has no knowledge graph** — it is small enough to read directly, so don't go looking for
