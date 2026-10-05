@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.2](https://github.com/TheMarketRobo/mql5-sample-lib/compare/v1.4.1...v1.4.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* **sample-ea:** ship the v1.4.1 SampleTMRBot.ex5 built without DLL imports ([0f981a7](https://github.com/TheMarketRobo/mql5-sample-lib/commit/0f981a791766873ce6c7e89f0d062572ec9dd9f2))
+* **sdk:** advance the SDK gitlink — credential redaction in debug logs ([6fd13c9](https://github.com/TheMarketRobo/mql5-sample-lib/commit/6fd13c96e8201b6b4462fb52323138cafd8dab68))
+
 ## [1.4.1](https://github.com/TheMarketRobo/mql5-sample-lib/compare/v1.4.0...v1.4.1) (2026-09-17)
 
 
