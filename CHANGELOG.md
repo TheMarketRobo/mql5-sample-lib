@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/TheMarketRobo/mql5-sample-lib/compare/v1.4.2...v1.4.3) (2026-10-07)
+
+
+### Bug Fixes
+
+* **sdk:** advance the SDK gitlink — null-response guards and redacted error prints ([#30](https://github.com/TheMarketRobo/mql5-sample-lib/issues/30)) ([3a0acf5](https://github.com/TheMarketRobo/mql5-sample-lib/commit/3a0acf57709be0f5449fdc4ced74afe03a2a6e77))
+
 ## [1.4.2](https://github.com/TheMarketRobo/mql5-sample-lib/compare/v1.4.1...v1.4.2) (2026-10-05)
 
 
