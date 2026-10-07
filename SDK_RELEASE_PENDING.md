@@ -38,5 +38,5 @@ skipped:
 
 | Site | Where | During the lag |
 |---|---|---|
-| 4 | `aws/src/endpoints/common/sdk-integrator/test/sdk-error-codes.test.ts` | its "SDK version" test derives the expected define from the SDK checkout's newest reachable `v*` tag, so it reads **red** against a 1.4.3 checkout until `v1.4.3` is published — expected, and repaid by the same tag |
+| 4 | `aws/src/endpoints/common/sdk-integrator/test/sdk-error-codes.test.ts` | its "SDK version" test derives the expected define from the SDK checkout's newest reachable `v*` tag. On aws `main` it therefore reads **red** against a 1.4.3 checkout until `v1.4.3` is published. aws `d6ee1da3` (fleet-sweep-2026-10 Phase 3, on aws's run branch until that plan releases it) teaches it this file's rule: a define ahead of its tag passes only under an exact `pending_sdk_tag: v<define>` here |
 | 5 | `aws/.../sdk-integrator` `MIN_REQUIRED_SDK_VERSION` | does not move: 1.4.3 is additive |
