@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.4](https://github.com/TheMarketRobo/mql5-sample-lib/compare/v1.4.3...v1.4.4) (2026-10-13)
+
+
+### Bug Fixes
+
+* **sdk:** advance the SDK gitlink — never read through a NULL JSON node on a 200 response ([#32](https://github.com/TheMarketRobo/mql5-sample-lib/issues/32)) ([def43c9](https://github.com/TheMarketRobo/mql5-sample-lib/commit/def43c97bba893053bc7fd4cba5b616f7d546a2a))
+* **sdk:** advance the SDK gitlink — NULL-safe reads of a malformed 200 reply ([#35](https://github.com/TheMarketRobo/mql5-sample-lib/issues/35)) ([5de6a0a](https://github.com/TheMarketRobo/mql5-sample-lib/commit/5de6a0a944840834e5583a18928e7cb576928c30))
+
+
+### Reverts
+
+* **sdk:** hold the SDK gitlink at v1.4.3 (aab65c8), the tree MQL52026 vendors ([#34](https://github.com/TheMarketRobo/mql5-sample-lib/issues/34)) ([d2a44b5](https://github.com/TheMarketRobo/mql5-sample-lib/commit/d2a44b5a907da262e847209efe33ded93740d7a1))
+
 ## [1.4.3](https://github.com/TheMarketRobo/mql5-sample-lib/compare/v1.4.2...v1.4.3) (2026-10-07)
 
 
